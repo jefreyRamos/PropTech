@@ -1,57 +1,63 @@
-package main.java.proptech.modelo;
+package proptech.modelo;
 
-import java.util.ArrayList;
-import java.util.List;
- 
+import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
+
 public class Asesor {
-    private String id;
-    private String nombre;
-    private String contacto;
-    private String especialidad;
-    private String zonaAsignada;
-    private List<String> inmueblesAsignados;
-    private int visitasAgendadas;
-    private int cierresRealizados;
-    private double comisionTotal;
- 
-    public Asesor(String id, String nombre, String contacto, String especialidad, String zonaAsignada) {
-        this.id = id;
-        this.nombre = nombre;
-        this.contacto = contacto;
-        this.especialidad = especialidad;
-        this.zonaAsignada = zonaAsignada;
-        this.inmueblesAsignados = new ArrayList<>();
-        this.visitasAgendadas = 0;
-        this.cierresRealizados = 0;
-        this.comisionTotal = 0.0;
+
+    private final IntegerProperty  id                 = new SimpleIntegerProperty();
+    private final StringProperty   codigo             = new SimpleStringProperty();
+    private final StringProperty   nombre             = new SimpleStringProperty();
+    private final StringProperty   contacto           = new SimpleStringProperty();
+    private final StringProperty   especialidad       = new SimpleStringProperty();
+    private final StringProperty   zonaAsignada       = new SimpleStringProperty();
+    private final IntegerProperty  cierresRealizados  = new SimpleIntegerProperty(0);
+    private final DoubleProperty   comisionTotal      = new SimpleDoubleProperty(0);
+
+    public Asesor() {}
+
+    public Asesor(String codigo, String nombre, String contacto,
+                  String especialidad, String zonaAsignada) {
+        setCodigo(codigo); setNombre(nombre);       setContacto(contacto);
+        setEspecialidad(especialidad);              setZonaAsignada(zonaAsignada);
     }
- 
-    public String getId() { return id; }
-    public String getNombre() { return nombre; }
-    public void setNombre(String n) { this.nombre = n; }
-    public String getContacto() { return contacto; }
-    public void setContacto(String c) { this.contacto = c; }
-    public String getEspecialidad() { return especialidad; }
-    public void setEspecialidad(String e) { this.especialidad = e; }
-    public String getZonaAsignada() { return zonaAsignada; }
-    public void setZonaAsignada(String z) { this.zonaAsignada = z; }
-    public List<String> getInmueblesAsignados() { return inmueblesAsignados; }
-    public void asignarInmueble(String codigo) { inmueblesAsignados.add(codigo); }
-    public void desasignarInmueble(String codigo) { inmueblesAsignados.remove(codigo); }
-    public int getVisitasAgendadas() { return visitasAgendadas; }
-    public void incrementarVisitas() { this.visitasAgendadas++; }
-    public void decrementarVisitas() { if (this.visitasAgendadas > 0) this.visitasAgendadas--; }
-    public int getCierresRealizados() { return cierresRealizados; }
-    public void registrarCierre(double comision) { this.cierresRealizados++; this.comisionTotal += comision; }
-    public double getComisionTotal() { return comisionTotal; }
-    public double getEfectividad() {
-        if (visitasAgendadas + cierresRealizados == 0) return 0;
-        return (double) cierresRealizados / (visitasAgendadas + cierresRealizados) * 100;
-    }
- 
+
+    public int    getId()              { return id.get(); }
+    public void   setId(int v)         { id.set(v); }
+    public IntegerProperty idProperty(){ return id; }
+
+    public String getCodigo()              { return codigo.get(); }
+    public void   setCodigo(String v)      { codigo.set(v); }
+    public StringProperty codigoProperty() { return codigo; }
+
+    public String getNombre()              { return nombre.get(); }
+    public void   setNombre(String v)      { nombre.set(v); }
+    public StringProperty nombreProperty() { return nombre; }
+
+    public String getContacto()              { return contacto.get(); }
+    public void   setContacto(String v)      { contacto.set(v); }
+    public StringProperty contactoProperty() { return contacto; }
+
+    public String getEspecialidad()              { return especialidad.get(); }
+    public void   setEspecialidad(String v)      { especialidad.set(v); }
+    public StringProperty especialidadProperty() { return especialidad; }
+
+    public String getZonaAsignada()              { return zonaAsignada.get(); }
+    public void   setZonaAsignada(String v)      { zonaAsignada.set(v); }
+    public StringProperty zonaAsignadaProperty() { return zonaAsignada; }
+
+    public int    getCierresRealizados()           { return cierresRealizados.get(); }
+    public void   setCierresRealizados(int v)      { cierresRealizados.set(v); }
+    public IntegerProperty cierresRealizadosProperty(){ return cierresRealizados; }
+
+    public double getComisionTotal()            { return comisionTotal.get(); }
+    public void   setComisionTotal(double v)    { comisionTotal.set(v); }
+    public DoubleProperty comisionTotalProperty(){ return comisionTotal; }
+
     @Override
-    public String toString() {
-        return String.format("[%s] %s | Zona: %s | Visitas: %d | Cierres: %d | Efectividad: %.1f%%",
-                id, nombre, zonaAsignada, visitasAgendadas, cierresRealizados, getEfectividad());
-    }
+    public String toString() { return getNombre() + " (" + getZonaAsignada() + ")"; }
 }

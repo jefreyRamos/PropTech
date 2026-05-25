@@ -1,135 +1,95 @@
-package main.java.proptech.estructuras;
+package proptech.estructuras;
 
 import java.util.ArrayList;
 import java.util.List;
- 
+
 /**
- * ESTRUCTURA: TABLA HASH (Hash Map con encadenamiento)
- * Implementación propia con arreglo de listas enlazadas.
- * Uso en PropTech:
- *   - Buscar clientes por ID en O(1)
- *   - Acceder a inmuebles por código en O(1)
- *   - Localizar asesores rápidamente
- *   - Contar frecuencia de visitas por inmueble o zona
- *
- * Complejidad promedio: insertar O(1), buscar O(1), eliminar O(1)
+ * TABLA HASH con encadenamiento por separado.
+ * Acceso O(1) promedio — usada como caché de Inmuebles, Clientes y Asesores.
  */
 public class TablaHash<K, V> {
- 
-    private static final int CAPACIDAD_INICIAL = 64;
-    private static final double FACTOR_CARGA_MAX = 0.75;
- 
+
+    private static final int    CAP_INI  = 64;
+    private static final double MAX_LOAD = 0.75;
+
     private static class Entrada<K, V> {
-        K clave;
-        V valor;
-        Entrada<K, V> siguiente;
-        Entrada(K clave, V valor) { this.clave = clave; this.valor = valor; }
+        K clave; V valor; Entrada<K, V> sig;
+        Entrada(K c, V v) { clave = c; valor = v; }
     }
- 
+
     @SuppressWarnings("unchecked")
-    private Entrada<K, V>[] tabla;
-    private int tamano;
-    private int capacidad;
- 
-    @SuppressWarnings("unchecked")
-    public TablaHash() {
-        this.capacidad = CAPACIDAD_INICIAL;
-        this.tabla = new Entrada[capacidad];
-        this.tamano = 0;
+    private Entrada<K, V>[] tabla = new Entrada[CAP_INI];
+    private int capacidad = CAP_INI;
+    private int tamano    = 0;
+
+    private int idx(K k) {
+        int h = k.hashCode() % capacidad;
+        return h < 0 ? h + capacidad : h;
     }
- 
-    private int indice(K clave) {
-        int hash = clave.hashCode() % capacidad;
-        return hash < 0 ? hash + capacidad : hash;
+
+    /** Inserta o actualiza. O(1) promedio */
+    public void put(K clave, V valor) {
+        if ((double) tamano / capacidad >= MAX_LOAD) rehash();
+        int i = idx(clave);
+        for (Entrada<K, V> n = tabla[i]; n != null; n = n.sig)
+            if (n.clave.equals(clave)) { n.valor = valor; return; }
+        Entrada<K, V> e = new Entrada<>(clave, valor);
+        e.sig = tabla[i]; tabla[i] = e; tamano++;
     }
- 
-    /** Inserta o actualiza un par clave-valor. O(1) promedio */
-    public void insertar(K clave, V valor) {
-        if ((double) tamano / capacidad >= FACTOR_CARGA_MAX) rehash();
-        int idx = indice(clave);
-        Entrada<K, V> actual = tabla[idx];
-        while (actual != null) {
-            if (actual.clave.equals(clave)) { actual.valor = valor; return; }
-            actual = actual.siguiente;
-        }
-        Entrada<K, V> nueva = new Entrada<>(clave, valor);
-        nueva.siguiente = tabla[idx];
-        tabla[idx] = nueva;
-        tamano++;
-    }
- 
-    /** Busca un valor por clave. O(1) promedio */
-    public V buscar(K clave) {
-        int idx = indice(clave);
-        Entrada<K, V> actual = tabla[idx];
-        while (actual != null) {
-            if (actual.clave.equals(clave)) return actual.valor;
-            actual = actual.siguiente;
-        }
+
+    /** Busca por clave. O(1) promedio */
+    public V get(K clave) {
+        for (Entrada<K, V> n = tabla[idx(clave)]; n != null; n = n.sig)
+            if (n.clave.equals(clave)) return n.valor;
         return null;
     }
- 
-    /** Elimina una entrada por clave. O(1) promedio */
-    public boolean eliminar(K clave) {
-        int idx = indice(clave);
-        Entrada<K, V> actual = tabla[idx];
-        Entrada<K, V> anterior = null;
-        while (actual != null) {
-            if (actual.clave.equals(clave)) {
-                if (anterior == null) tabla[idx] = actual.siguiente;
-                else anterior.siguiente = actual.siguiente;
-                tamano--;
-                return true;
+
+    /** Elimina. O(1) promedio */
+    public boolean remove(K clave) {
+        int i = idx(clave);
+        Entrada<K, V> n = tabla[i], prev = null;
+        while (n != null) {
+            if (n.clave.equals(clave)) {
+                if (prev == null) tabla[i] = n.sig; else prev.sig = n.sig;
+                tamano--; return true;
             }
-            anterior = actual;
-            actual = actual.siguiente;
+            prev = n; n = n.sig;
         }
         return false;
     }
- 
-    public boolean contiene(K clave) { return buscar(clave) != null; }
-    public int getTamano() { return tamano; }
-    public boolean estaVacia() { return tamano == 0; }
- 
-    /** Retorna todos los valores almacenados. O(n) */
-    public List<V> valores() {
-        List<V> lista = new ArrayList<>();
-        for (Entrada<K, V> entrada : tabla) {
-            Entrada<K, V> actual = entrada;
-            while (actual != null) { lista.add(actual.valor); actual = actual.siguiente; }
-        }
-        return lista;
+
+    public boolean containsKey(K k) { return get(k) != null; }
+    public int     size()            { return tamano; }
+    public boolean isEmpty()         { return tamano == 0; }
+
+    public List<V> values() {
+        List<V> r = new ArrayList<>();
+        for (Entrada<K, V> e : tabla)
+            for (Entrada<K, V> n = e; n != null; n = n.sig) r.add(n.valor);
+        return r;
     }
- 
-    /** Retorna todas las claves. O(n) */
-    public List<K> claves() {
-        List<K> lista = new ArrayList<>();
-        for (Entrada<K, V> entrada : tabla) {
-            Entrada<K, V> actual = entrada;
-            while (actual != null) { lista.add(actual.clave); actual = actual.siguiente; }
-        }
-        return lista;
+
+    public List<K> keys() {
+        List<K> r = new ArrayList<>();
+        for (Entrada<K, V> e : tabla)
+            for (Entrada<K, V> n = e; n != null; n = n.sig) r.add(n.clave);
+        return r;
     }
- 
+
     @SuppressWarnings("unchecked")
     private void rehash() {
         capacidad *= 2;
-        Entrada<K, V>[] nuevaTabla = new Entrada[capacidad];
-        for (Entrada<K, V> entrada : tabla) {
-            Entrada<K, V> actual = entrada;
-            while (actual != null) {
-                int idx = Math.abs(actual.clave.hashCode() % capacidad);
-                Entrada<K, V> nueva = new Entrada<>(actual.clave, actual.valor);
-                nueva.siguiente = nuevaTabla[idx];
-                nuevaTabla[idx] = nueva;
-                actual = actual.siguiente;
+        Entrada<K, V>[] nueva = new Entrada[capacidad];
+        for (Entrada<K, V> e : tabla)
+            for (Entrada<K, V> n = e; n != null; n = n.sig) {
+                int i = Math.abs(n.clave.hashCode() % capacidad);
+                Entrada<K, V> t = new Entrada<>(n.clave, n.valor);
+                t.sig = nueva[i]; nueva[i] = t;
             }
-        }
-        tabla = nuevaTabla;
+        tabla = nueva;
     }
- 
-    @Override
-    public String toString() {
+
+    @Override public String toString() {
         return "TablaHash{tamano=" + tamano + ", capacidad=" + capacidad + "}";
     }
 }

@@ -1,55 +1,79 @@
-package main.java.proptech.modelo;
+package proptech.modelo;
 
-import java.time.LocalDateTime;
- 
-public class Visita implements Comparable<Visita> {
-    private String id;
-    private String idCliente;
-    private String codigoInmueble;
-    private LocalDateTime fechaHora;
-    private String idAsesor;
-    private EstadoVisita estado;
-    private String observaciones;
-    private int prioridad; // 1=normal, 2=alta, 3=VIP urgente
- 
-    public enum EstadoVisita { PENDIENTE, CONFIRMADA, REALIZADA, CANCELADA, REPROGRAMADA }
- 
-    public Visita(String id, String idCliente, String codigoInmueble,
-                  LocalDateTime fechaHora, String idAsesor, int prioridad) {
-        this.id = id;
-        this.idCliente = idCliente;
-        this.codigoInmueble = codigoInmueble;
-        this.fechaHora = fechaHora;
-        this.idAsesor = idAsesor;
-        this.estado = EstadoVisita.PENDIENTE;
-        this.prioridad = prioridad;
-        this.observaciones = "";
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
+
+public class Visita {
+
+    public enum Estado   { PENDIENTE, CONFIRMADA, REALIZADA, CANCELADA, REPROGRAMADA }
+    public enum Prioridad{ NORMAL, ALTA, VIP }
+
+    private final IntegerProperty           id                 = new SimpleIntegerProperty();
+    private final StringProperty            idCliente          = new SimpleStringProperty();
+    private final StringProperty            codigoInmueble     = new SimpleStringProperty();
+    private final StringProperty            fechaHora          = new SimpleStringProperty();
+    private final StringProperty            idAsesor           = new SimpleStringProperty();
+    private final ObjectProperty<Estado>    estado             = new SimpleObjectProperty<>(Estado.PENDIENTE);
+    private final ObjectProperty<Prioridad> prioridad          = new SimpleObjectProperty<>(Prioridad.NORMAL);
+    private final StringProperty            observaciones      = new SimpleStringProperty("");
+    // Campos de display (JOIN desde BD)
+    private final StringProperty            nombreCliente      = new SimpleStringProperty("");
+    private final StringProperty            direccionInmueble  = new SimpleStringProperty("");
+    private final StringProperty            nombreAsesor       = new SimpleStringProperty("");
+
+    public Visita() {}
+
+    public Visita(String idCliente, String codigoInmueble, String fechaHora,
+                  String idAsesor, Prioridad prioridad) {
+        setIdCliente(idCliente); setCodigoInmueble(codigoInmueble);
+        setFechaHora(fechaHora); setIdAsesor(idAsesor); setPrioridad(prioridad);
     }
- 
-    public String getId() { return id; }
-    public String getIdCliente() { return idCliente; }
-    public String getCodigoInmueble() { return codigoInmueble; }
-    public LocalDateTime getFechaHora() { return fechaHora; }
-    public void setFechaHora(LocalDateTime f) { this.fechaHora = f; }
-    public String getIdAsesor() { return idAsesor; }
-    public void setIdAsesor(String a) { this.idAsesor = a; }
-    public EstadoVisita getEstado() { return estado; }
-    public void setEstado(EstadoVisita e) { this.estado = e; }
-    public String getObservaciones() { return observaciones; }
-    public void setObservaciones(String o) { this.observaciones = o; }
-    public int getPrioridad() { return prioridad; }
-    public void setPrioridad(int p) { this.prioridad = p; }
- 
-    @Override
-    public int compareTo(Visita otra) {
-        // Mayor prioridad primero; si igual, la más próxima primero
-        if (this.prioridad != otra.prioridad) return Integer.compare(otra.prioridad, this.prioridad);
-        return this.fechaHora.compareTo(otra.fechaHora);
-    }
- 
-    @Override
-    public String toString() {
-        return String.format("[%s] Cliente:%s -> Inmueble:%s | %s | Asesor:%s | Estado:%s | Prioridad:%d",
-                id, idCliente, codigoInmueble, fechaHora, idAsesor, estado, prioridad);
-    }
+
+    public int    getId()              { return id.get(); }
+    public void   setId(int v)         { id.set(v); }
+    public IntegerProperty idProperty(){ return id; }
+
+    public String getIdCliente()              { return idCliente.get(); }
+    public void   setIdCliente(String v)      { idCliente.set(v); }
+    public StringProperty idClienteProperty() { return idCliente; }
+
+    public String getCodigoInmueble()              { return codigoInmueble.get(); }
+    public void   setCodigoInmueble(String v)      { codigoInmueble.set(v); }
+    public StringProperty codigoInmuebleProperty() { return codigoInmueble; }
+
+    public String getFechaHora()              { return fechaHora.get(); }
+    public void   setFechaHora(String v)      { fechaHora.set(v); }
+    public StringProperty fechaHoraProperty() { return fechaHora; }
+
+    public String getIdAsesor()              { return idAsesor.get(); }
+    public void   setIdAsesor(String v)      { idAsesor.set(v); }
+    public StringProperty idAsesorProperty() { return idAsesor; }
+
+    public Estado  getEstado()                  { return estado.get(); }
+    public void    setEstado(Estado v)          { estado.set(v); }
+    public ObjectProperty<Estado> estadoProperty(){ return estado; }
+
+    public Prioridad getPrioridad()                    { return prioridad.get(); }
+    public void      setPrioridad(Prioridad v)         { prioridad.set(v); }
+    public ObjectProperty<Prioridad> prioridadProperty(){ return prioridad; }
+
+    public String getObservaciones()              { return observaciones.get(); }
+    public void   setObservaciones(String v)      { observaciones.set(v != null ? v : ""); }
+    public StringProperty observacionesProperty() { return observaciones; }
+
+    public String getNombreCliente()              { return nombreCliente.get(); }
+    public void   setNombreCliente(String v)      { nombreCliente.set(v != null ? v : ""); }
+    public StringProperty nombreClienteProperty() { return nombreCliente; }
+
+    public String getDireccionInmueble()              { return direccionInmueble.get(); }
+    public void   setDireccionInmueble(String v)      { direccionInmueble.set(v != null ? v : ""); }
+    public StringProperty direccionInmuebleProperty() { return direccionInmueble; }
+
+    public String getNombreAsesor()              { return nombreAsesor.get(); }
+    public void   setNombreAsesor(String v)      { nombreAsesor.set(v != null ? v : ""); }
+    public StringProperty nombreAsesorProperty() { return nombreAsesor; }
 }

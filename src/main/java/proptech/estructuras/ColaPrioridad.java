@@ -1,94 +1,54 @@
-package main.java.proptech.estructuras;
+package proptech.estructuras;
 
 import java.util.ArrayList;
 import java.util.List;
- 
+import java.util.NoSuchElementException;
+
 /**
- * ESTRUCTURA: COLA DE PRIORIDAD (Max-Heap)
- * Implementación propia con arreglo dinámico.
- * Uso en PropTech:
- *   - Visitas urgentes o VIP primero
- *   - Alertas por nivel de criticidad
- *   - Clientes con alta intención de cierre
- *   - Inmuebles con mayor demanda
- *
- * Complejidad: insertar O(log n), extraer máximo O(log n), ver máximo O(1)
+ * COLA DE PRIORIDAD — Max-Heap binario propio.
+ * El elemento con mayor prioridad se sirve primero.
+ * Usada para visitas VIP/urgentes.
+ * insertar O(log n) | extraer O(log n) | peek O(1)
  */
 public class ColaPrioridad<T extends Comparable<T>> {
- 
-    private final List<T> heap;
- 
-    public ColaPrioridad() {
-        this.heap = new ArrayList<>();
+
+    private final List<T> heap = new ArrayList<>();
+
+    public void insertar(T e) {
+        heap.add(e); subir(heap.size() - 1);
     }
- 
-    /** Inserta manteniendo la propiedad de max-heap. O(log n) */
-    public void insertar(T elemento) {
-        heap.add(elemento);
-        subirBurbuja(heap.size() - 1);
+
+    public T extraer() {
+        if (heap.isEmpty()) throw new NoSuchElementException("Cola vacía");
+        T top  = heap.get(0);
+        T last = heap.remove(heap.size() - 1);
+        if (!heap.isEmpty()) { heap.set(0, last); bajar(0); }
+        return top;
     }
- 
-    /** Extrae el elemento de mayor prioridad. O(log n) */
-    public T extraerMaximo() {
-        if (estaVacia()) throw new RuntimeException("Cola de prioridad vacía");
-        T max = heap.get(0);
-        T ultimo = heap.remove(heap.size() - 1);
-        if (!estaVacia()) {
-            heap.set(0, ultimo);
-            bajarBurbuja(0);
-        }
-        return max;
-    }
- 
-    /** Ve el elemento de mayor prioridad sin extraerlo. O(1) */
-    public T verMaximo() {
-        if (estaVacia()) throw new RuntimeException("Cola de prioridad vacía");
-        return heap.get(0);
-    }
- 
-    private void subirBurbuja(int idx) {
-        while (idx > 0) {
-            int padre = (idx - 1) / 2;
-            if (heap.get(idx).compareTo(heap.get(padre)) > 0) {
-                intercambiar(idx, padre);
-                idx = padre;
-            } else break;
+
+    public T    peek()    { return heap.isEmpty() ? null : heap.get(0); }
+    public boolean isEmpty() { return heap.isEmpty(); }
+    public int  size()    { return heap.size(); }
+    public List<T> toList(){ return new ArrayList<>(heap); }
+
+    private void subir(int i) {
+        while (i > 0) {
+            int p = (i - 1) / 2;
+            if (heap.get(i).compareTo(heap.get(p)) > 0) { swap(i, p); i = p; } else break;
         }
     }
- 
-    private void bajarBurbuja(int idx) {
+    private void bajar(int i) {
         int n = heap.size();
         while (true) {
-            int mayor = idx;
-            int izq = 2 * idx + 1;
-            int der = 2 * idx + 2;
-            if (izq < n && heap.get(izq).compareTo(heap.get(mayor)) > 0) mayor = izq;
-            if (der < n && heap.get(der).compareTo(heap.get(mayor)) > 0) mayor = der;
-            if (mayor != idx) { intercambiar(idx, mayor); idx = mayor; }
-            else break;
+            int m = i, l = 2*i+1, r = 2*i+2;
+            if (l < n && heap.get(l).compareTo(heap.get(m)) > 0) m = l;
+            if (r < n && heap.get(r).compareTo(heap.get(m)) > 0) m = r;
+            if (m != i) { swap(i, m); i = m; } else break;
         }
     }
- 
-    private void intercambiar(int i, int j) {
-        T tmp = heap.get(i);
-        heap.set(i, heap.get(j));
-        heap.set(j, tmp);
-    }
- 
-    public boolean estaVacia() { return heap.isEmpty(); }
-    public int getTamano() { return heap.size(); }
- 
-    /** Lista todos los elementos en orden descendente (no destructivo). */
-    public List<T> listarOrdenado() {
-        ColaPrioridad<T> copia = new ColaPrioridad<>();
-        for (T e : heap) copia.insertar(e);
-        List<T> resultado = new ArrayList<>();
-        while (!copia.estaVacia()) resultado.add(copia.extraerMaximo());
-        return resultado;
-    }
- 
-    @Override
-    public String toString() {
-        return "ColaPrioridad(max=" + (estaVacia() ? "vacía" : verMaximo()) + ", tam=" + heap.size() + ")";
+    private void swap(int a, int b) { T t = heap.get(a); heap.set(a, heap.get(b)); heap.set(b, t); }
+
+    @Override public String toString() {
+        return "ColaPrioridad{size=" + heap.size() + ", max=" + (heap.isEmpty() ? "vacía" : heap.get(0)) + "}";
     }
 }
