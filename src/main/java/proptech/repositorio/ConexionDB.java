@@ -7,22 +7,36 @@ import java.sql.Statement;
 
 /**
  * SINGLETON — Conexión SQLite vía JDBC.
- * Crea el esquema completo la primera vez que se ejecuta.
- * El archivo proptech.db se genera en el directorio de trabajo.
+ * CORRECCIÓN: se usa ruta absoluta al directorio de trabajo del usuario
+ * para garantizar que proptech.db siempre se encuentre sin importar
+ * desde dónde se lanza la aplicación en VS Code / terminal.
  */
 public class ConexionDB {
 
-    private static final String URL = "jdbc:sqlite:proptech.db";
+    private static final String DB_URL;
+
+    static {
+        // Guarda la BD junto al proyecto, en la carpeta de trabajo actual
+        String dir = System.getProperty("user.dir");
+        DB_URL = "jdbc:sqlite:" + dir + "/proptech.db";
+        System.out.println("[DB] Ruta BD → " + dir + "/proptech.db");
+    }
+
     private static ConexionDB instancia;
     private Connection conn;
 
     private ConexionDB() {
         try {
             Class.forName("org.sqlite.JDBC");
-            conn = DriverManager.getConnection(URL);
-            conn.createStatement().execute("PRAGMA foreign_keys = ON");
+            conn = DriverManager.getConnection(DB_URL);
+            // Mejora rendimiento y garantiza integridad referencial
+            try (Statement st = conn.createStatement()) {
+                st.execute("PRAGMA foreign_keys = ON");
+                st.execute("PRAGMA journal_mode = WAL");
+                st.execute("PRAGMA synchronous = NORMAL");
+            }
             crearEsquema();
-            System.out.println("[DB] Conectado → proptech.db");
+            System.out.println("[DB] Conectado correctamente a SQLite");
         } catch (Exception e) {
             throw new RuntimeException("Error al conectar SQLite: " + e.getMessage(), e);
         }
@@ -35,8 +49,9 @@ public class ConexionDB {
 
     public Connection getConexion() {
         try {
-            if (conn == null || conn.isClosed())
-                conn = DriverManager.getConnection(URL);
+            if (conn == null || conn.isClosed()) {
+                conn = DriverManager.getConnection(DB_URL);
+            }
         } catch (SQLException e) {
             throw new RuntimeException("Error al recuperar conexión: " + e.getMessage(), e);
         }
@@ -49,11 +64,11 @@ public class ConexionDB {
         st.execute("""
             CREATE TABLE IF NOT EXISTS asesores (
                 id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-                codigo             TEXT NOT NULL UNIQUE,
-                nombre             TEXT NOT NULL,
-                contacto           TEXT,
-                especialidad       TEXT,
-                zona_asignada      TEXT,
+                codigo             TEXT    NOT NULL UNIQUE,
+                nombre             TEXT    NOT NULL,
+                contacto           TEXT    DEFAULT '',
+                especialidad       TEXT    DEFAULT '',
+                zona_asignada      TEXT    DEFAULT '',
                 cierres_realizados INTEGER DEFAULT 0,
                 comision_total     REAL    DEFAULT 0
             )""");
@@ -63,31 +78,31 @@ public class ConexionDB {
                 id               INTEGER PRIMARY KEY AUTOINCREMENT,
                 codigo           TEXT    NOT NULL UNIQUE,
                 direccion        TEXT    NOT NULL,
-                ciudad           TEXT    NOT NULL,
-                barrio           TEXT,
-                tipo             TEXT    NOT NULL,
-                finalidad        TEXT    NOT NULL,
-                precio           REAL    NOT NULL,
+                ciudad           TEXT    NOT NULL DEFAULT '',
+                barrio           TEXT    DEFAULT '',
+                tipo             TEXT    NOT NULL DEFAULT 'APARTAMENTO',
+                finalidad        TEXT    NOT NULL DEFAULT 'ARRIENDO',
+                precio           REAL    NOT NULL DEFAULT 0,
                 area             REAL    DEFAULT 0,
                 habitaciones     INTEGER DEFAULT 0,
                 banos            INTEGER DEFAULT 0,
                 estado           TEXT    DEFAULT 'DISPONIBLE',
                 disponible       INTEGER DEFAULT 1,
-                codigo_asesor    TEXT,
+                codigo_asesor    TEXT    DEFAULT '',
                 contador_visitas INTEGER DEFAULT 0
             )""");
 
         st.execute("""
             CREATE TABLE IF NOT EXISTS clientes (
                 id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-                identificacion        TEXT NOT NULL UNIQUE,
-                nombre                TEXT NOT NULL,
-                correo                TEXT,
-                telefono              TEXT,
-                tipo                  TEXT NOT NULL,
-                presupuesto           REAL NOT NULL,
-                zona_interes          TEXT,
-                tipo_inmueble_deseado TEXT,
+                identificacion        TEXT    NOT NULL UNIQUE,
+                nombre                TEXT    NOT NULL,
+                correo                TEXT    DEFAULT '',
+                telefono              TEXT    DEFAULT '',
+                tipo                  TEXT    NOT NULL DEFAULT 'COMPRADOR',
+                presupuesto           REAL    NOT NULL DEFAULT 0,
+                zona_interes          TEXT    DEFAULT '',
+                tipo_inmueble_deseado TEXT    DEFAULT '',
                 min_habitaciones      INTEGER DEFAULT 0,
                 estado_busqueda       TEXT    DEFAULT 'ACTIVO'
             )""");
@@ -95,10 +110,10 @@ public class ConexionDB {
         st.execute("""
             CREATE TABLE IF NOT EXISTS visitas (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                id_cliente      TEXT    NOT NULL,
-                codigo_inmueble TEXT    NOT NULL,
-                fecha_hora      TEXT    NOT NULL,
-                id_asesor       TEXT,
+                id_cliente      TEXT    NOT NULL DEFAULT '',
+                codigo_inmueble TEXT    NOT NULL DEFAULT '',
+                fecha_hora      TEXT    NOT NULL DEFAULT '',
+                id_asesor       TEXT    DEFAULT '',
                 estado          TEXT    DEFAULT 'PENDIENTE',
                 prioridad       TEXT    DEFAULT 'NORMAL',
                 observaciones   TEXT    DEFAULT ''
@@ -115,22 +130,27 @@ public class ConexionDB {
         st.execute("""
             CREATE TABLE IF NOT EXISTS operaciones (
                 id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                codigo_inmueble  TEXT NOT NULL,
-                id_cliente       TEXT NOT NULL,
-                id_asesor        TEXT,
-                tipo             TEXT NOT NULL,
-                valor_acordado   REAL NOT NULL,
+                codigo_inmueble  TEXT NOT NULL DEFAULT '',
+                id_cliente       TEXT NOT NULL DEFAULT '',
+                id_asesor        TEXT DEFAULT '',
+                tipo             TEXT NOT NULL DEFAULT 'VENTA',
+                valor_acordado   REAL NOT NULL DEFAULT 0,
                 comision         REAL DEFAULT 0,
                 estado           TEXT DEFAULT 'EN_PROCESO',
                 fecha            TEXT DEFAULT (datetime('now')),
-                fecha_vencimiento TEXT
+                fecha_vencimiento TEXT DEFAULT ''
             )""");
 
         st.close();
+        System.out.println("[DB] Esquema verificado/creado correctamente");
     }
 
     public void cerrar() {
-        try { if (conn != null && !conn.isClosed()) conn.close(); }
-        catch (SQLException ignored) {}
+        try {
+            if (conn != null && !conn.isClosed()) {
+                conn.close();
+                System.out.println("[DB] Conexión cerrada.");
+            }
+        } catch (SQLException ignored) {}
     }
 }

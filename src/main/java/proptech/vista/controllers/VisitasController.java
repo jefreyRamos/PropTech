@@ -1,272 +1,294 @@
 package proptech.vista.controllers;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.layout.*;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import proptech.modelo.Asesor;
 import proptech.modelo.Visita;
 import proptech.servicios.PropTechService;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-
 public class VisitasController {
 
     private final PropTechService svc = PropTechService.getInstance();
     private final ObservableList<Visita> datos = FXCollections.observableArrayList();
     private TableView<Visita> tabla;
-    private ComboBox<String> cmbFiltroEstado;
+    private ComboBox<String> cmbFiltro;
 
     public Pane build() {
-        VBox root = new VBox(14);
-        root.setPrefSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        root.setPadding(new Insets(4));
-        root.getChildren().addAll(buildHeader(), buildTabla(), buildPie());
-        VBox.setVgrow(buildTabla(), Priority.ALWAYS);
+        VBox root = new VBox(12);
+        root.getStyleClass().add("modulo-root");
+        root.setMaxWidth(Double.MAX_VALUE);
+        root.setMaxHeight(Double.MAX_VALUE);
+
+        tabla = buildTabla();
+        VBox.setVgrow(tabla, Priority.ALWAYS);
+
+        root.getChildren().addAll(buildHeader(), tabla, buildAccionesBar());
         cargarDatos();
         return root;
     }
 
     private HBox buildHeader() {
-        HBox hb = new HBox(12); hb.setAlignment(Pos.CENTER_LEFT);
-        hb.setStyle("-fx-background-color:white;-fx-background-radius:12;-fx-padding:16 20;-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.06),8,0,0,2);");
+        HBox hb = new HBox(12);
+        hb.getStyleClass().add("module-header");
+        hb.setAlignment(Pos.CENTER_LEFT);
+        hb.setMaxWidth(Double.MAX_VALUE);
 
-        Label title = new Label("📅 Gestión de Visitas");
-        title.setStyle("-fx-font-size:17px;-fx-font-weight:bold;-fx-text-fill:#1a202c;");
+        Label title = new Label("📅  Gestión de Visitas");
+        title.getStyleClass().add("module-title");
 
         Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
 
-        Label lblF = new Label("Filtrar:");
-        lblF.setStyle("-fx-font-size:12px;-fx-text-fill:#718096;-fx-font-weight:bold;");
+        Label lblF = new Label("Estado:");
+        lblF.setStyle("-fx-font-size:12px; -fx-text-fill:#64748b; -fx-font-weight:bold;");
 
-        cmbFiltroEstado = new ComboBox<>(FXCollections.observableArrayList(
+        cmbFiltro = new ComboBox<>(FXCollections.observableArrayList(
             "Todos","PENDIENTE","CONFIRMADA","REALIZADA","CANCELADA","REPROGRAMADA"));
-        cmbFiltroEstado.setValue("Todos");
-        cmbFiltroEstado.setOnAction(e -> filtrarPorEstado());
+        cmbFiltro.setValue("Todos");
+        cmbFiltro.setPrefWidth(150);
+        cmbFiltro.setOnAction(e -> filtrar());
 
         Button btnNueva = new Button("＋  Agendar Visita");
         btnNueva.getStyleClass().add("btn-primary");
         btnNueva.setOnAction(e -> abrirFormulario(null));
 
-        hb.getChildren().addAll(title, sp, lblF, cmbFiltroEstado, btnNueva);
+        hb.getChildren().addAll(title, sp, lblF, cmbFiltro, btnNueva);
         return hb;
     }
 
     @SuppressWarnings("unchecked")
     private TableView<Visita> buildTabla() {
-        tabla = new TableView<>();
-        tabla.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        tabla.setPrefHeight(Double.MAX_VALUE);
-        tabla.setPlaceholder(new Label("Sin visitas registradas."));
-        VBox.setVgrow(tabla, Priority.ALWAYS);
+        TableView<Visita> t = new TableView<>();
+        t.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        t.setMaxWidth(Double.MAX_VALUE);
+        t.setMaxHeight(Double.MAX_VALUE);
+        t.setPlaceholder(new Label("Sin visitas registradas.  Haz clic en '＋ Agendar Visita'."));
 
-        TableColumn<Visita,Number> cId    = new TableColumn<>("#");
-        cId.setCellValueFactory(new PropertyValueFactory<>("id")); cId.setMinWidth(45); cId.setMaxWidth(55);
+        TableColumn<Visita,Number> cId = new TableColumn<>("#");
+        cId.setCellValueFactory(new PropertyValueFactory<>("id"));
+        cId.setMinWidth(45); cId.setMaxWidth(55);
 
-        TableColumn<Visita,String> cCli   = strCol("Cliente",          "nombreCliente",     160);
-        TableColumn<Visita,String> cInm   = strCol("Inmueble",         "direccionInmueble", 180);
-        TableColumn<Visita,String> cFecha = strCol("Fecha y Hora",     "fechaHora",         130);
-        TableColumn<Visita,String> cAs    = strCol("Asesor",           "nombreAsesor",      130);
+        TableColumn<Visita,String> cCli   = sc("Cliente",       "nombreCliente",      180);
+        TableColumn<Visita,String> cInm   = sc("Inmueble",      "direccionInmueble",  200);
+        TableColumn<Visita,String> cFecha = sc("Fecha / Hora",  "fechaHora",          140);
+        TableColumn<Visita,String> cAs    = sc("Asesor",        "nombreAsesor",       150);
 
         TableColumn<Visita,Object> cPrior = new TableColumn<>("Prioridad");
         cPrior.setCellValueFactory(new PropertyValueFactory<>("prioridad"));
-        cPrior.setMinWidth(90);
-        cPrior.setCellFactory(tc -> new TableCell<>() {
-            @Override protected void updateItem(Object v, boolean empty) {
-                super.updateItem(v,empty); setText(null); setGraphic(null);
-                if (!empty && v != null) {
-                    Label l = new Label(v.toString());
-                    l.getStyleClass().add(switch(v.toString()) {
-                        case "VIP"   -> "badge-purple";
-                        case "ALTA"  -> "badge-orange";
-                        default      -> "badge-blue";
-                    });
-                    setGraphic(l);
-                }
-            }
-        });
+        cPrior.setMinWidth(95);
+        cPrior.setCellFactory(tc -> badge(v -> switch(v) {
+            case "VIP"  -> "badge-purple";
+            case "ALTA" -> "badge-orange";
+            default     -> "badge-blue";
+        }));
 
         TableColumn<Visita,Object> cEst = new TableColumn<>("Estado");
         cEst.setCellValueFactory(new PropertyValueFactory<>("estado"));
-        cEst.setMinWidth(110);
-        cEst.setCellFactory(tc -> new TableCell<>() {
-            @Override protected void updateItem(Object v, boolean empty) {
-                super.updateItem(v,empty); setText(null); setGraphic(null);
-                if (!empty && v != null) {
-                    Label l = new Label(v.toString());
-                    l.getStyleClass().add(switch(v.toString()) {
-                        case "CONFIRMADA"   -> "badge-green";
-                        case "REALIZADA"    -> "badge-blue";
-                        case "CANCELADA"    -> "badge-red";
-                        case "REPROGRAMADA" -> "badge-orange";
-                        default             -> "badge-orange";
-                    });
-                    setGraphic(l);
-                }
-            }
-        });
+        cEst.setMinWidth(115);
+        cEst.setCellFactory(tc -> badge(v -> switch(v) {
+            case "CONFIRMADA"   -> "badge-green";
+            case "REALIZADA"    -> "badge-blue";
+            case "CANCELADA"    -> "badge-red";
+            case "REPROGRAMADA" -> "badge-orange";
+            default             -> "badge-gray";
+        }));
 
-        TableColumn<Visita,String> cObs = strCol("Observaciones","observaciones",150);
+        TableColumn<Visita,String> cObs = sc("Observaciones","observaciones",160);
 
         TableColumn<Visita,Void> cAcc = new TableColumn<>("Acciones");
-        cAcc.setMinWidth(130); cAcc.setMaxWidth(140);
+        cAcc.setMinWidth(140); cAcc.setMaxWidth(145);
         cAcc.setCellFactory(tc -> new TableCell<>() {
-            final Button bEdit   = new Button("✏");
-            final Button bConf   = new Button("✔");
-            final Button bCancel = new Button("✕");
-            final HBox box = new HBox(3, bEdit, bConf, bCancel);
+            final Button bE=new Button("✏"), bC=new Button("✔"), bX=new Button("✕");
+            final HBox box=new HBox(3,bE,bC,bX);
             {
-                bEdit.getStyleClass().add("btn-icon");
-                bConf.getStyleClass().add("btn-icon");
-                bCancel.getStyleClass().add("btn-icon");
+                bE.getStyleClass().add("btn-icon"); bC.getStyleClass().add("btn-icon"); bX.getStyleClass().add("btn-icon");
+                bC.setTooltip(new Tooltip("Confirmar")); bX.setTooltip(new Tooltip("Cancelar"));
                 box.setAlignment(Pos.CENTER);
-                bEdit.setOnAction(e -> abrirFormulario(getTableView().getItems().get(getIndex())));
-                bConf.setOnAction(e -> cambiarEstado(getTableView().getItems().get(getIndex()), Visita.Estado.CONFIRMADA));
-                bCancel.setOnAction(e -> cambiarEstado(getTableView().getItems().get(getIndex()), Visita.Estado.CANCELADA));
+                bE.setOnAction(e -> abrirFormulario(datos.get(getIndex())));
+                bC.setOnAction(e -> cambiarEstado(datos.get(getIndex()), Visita.Estado.CONFIRMADA));
+                bX.setOnAction(e -> cambiarEstado(datos.get(getIndex()), Visita.Estado.CANCELADA));
             }
-            @Override protected void updateItem(Void v, boolean empty){ super.updateItem(v,empty); setGraphic(empty?null:box); }
+            @Override protected void updateItem(Void v, boolean e){ super.updateItem(v,e); setGraphic(e?null:box); }
         });
 
-        tabla.getColumns().addAll(cId,cCli,cInm,cFecha,cAs,cPrior,cEst,cObs,cAcc);
-        tabla.setItems(datos);
-        return tabla;
+        t.getColumns().addAll(cId,cCli,cInm,cFecha,cAs,cPrior,cEst,cObs,cAcc);
+        t.setItems(datos);
+        tabla = t;
+        return t;
     }
 
-    private HBox buildPie() {
-        HBox hb = new HBox(10); hb.setAlignment(Pos.CENTER_RIGHT);
+    private HBox buildAccionesBar() {
+        HBox bar = new HBox(10);
+        bar.getStyleClass().add("acciones-bar");
+        bar.setAlignment(Pos.CENTER_RIGHT);
+        bar.setMaxWidth(Double.MAX_VALUE);
 
-        Label info = new Label("💡 Las visitas VIP se procesan primero (Cola de Prioridad)");
-        info.setStyle("-fx-font-size:11px;-fx-text-fill:#718096;-fx-font-style:italic;");
+        Label info = new Label("💡  VIP y ALTA se procesan primero (Cola de Prioridad)");
+        info.setStyle("-fx-font-size:11px; -fx-text-fill:#94a3b8; -fx-font-style:italic;");
+
         Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
 
-        Button btnProcesar = new Button("⚡ Procesar Siguiente Urgente (Cola Prioridad)");
-        btnProcesar.getStyleClass().add("btn-secondary");
-        btnProcesar.setOnAction(e -> {
+        Button btnProc = new Button("⚡  Procesar Siguiente Urgente");
+        btnProc.getStyleClass().add("btn-secondary");
+        btnProc.setOnAction(e -> {
             PropTechService.VisitaPriorizada vp = svc.procesarSiguiente();
-            if (vp == null) { mostrarInfo("No hay visitas urgentes en cola."); return; }
-            mostrarInfo("Procesando: " + vp.toString());
+            Alert a = new Alert(Alert.AlertType.INFORMATION,
+                vp==null ? "No hay visitas urgentes en la cola."
+                         : "Procesando: " + vp, ButtonType.OK);
+            a.setTitle("Cola de Prioridad"); a.showAndWait();
         });
 
-        hb.getChildren().addAll(info, sp, btnProcesar);
-        return hb;
+        Button btnReload = new Button("↺");
+        btnReload.getStyleClass().add("btn-icon");
+        btnReload.setTooltip(new Tooltip("Recargar"));
+        btnReload.setOnAction(e -> cargarDatos());
+
+        bar.getChildren().addAll(info, sp, btnProc, btnReload);
+        return bar;
     }
 
     private void cargarDatos() { datos.setAll(svc.getTodosVisitas()); }
 
-    private void filtrarPorEstado() {
-        String f = cmbFiltroEstado.getValue();
+    private void filtrar() {
+        String f = cmbFiltro.getValue();
         if ("Todos".equals(f)) { cargarDatos(); return; }
         datos.setAll(svc.getTodosVisitas().stream()
             .filter(v -> v.getEstado().name().equals(f)).toList());
     }
 
-    private void cambiarEstado(Visita v, Visita.Estado nuevoEstado) {
-        v.setEstado(nuevoEstado);
-        svc.actualizarVisita(v);
-        cargarDatos();
+    private void cambiarEstado(Visita v, Visita.Estado s) {
+        v.setEstado(s); svc.actualizarVisita(v); cargarDatos();
     }
 
     private void abrirFormulario(Visita visita) {
         Stage win = new Stage();
         win.initModality(Modality.APPLICATION_MODAL);
-        win.setTitle(visita == null ? "Agendar Visita" : "Editar Visita");
-        win.setWidth(480); win.setHeight(420);
+        win.setTitle(visita==null ? "➕ Agendar Visita" : "✏ Editar Visita");
+        win.setWidth(480); win.setHeight(430); win.setResizable(false);
 
-        GridPane gp = new GridPane();
-        gp.setHgap(12); gp.setVgap(10); gp.setPadding(new Insets(20));
-        gp.setStyle("-fx-background-color:white;");
+        GridPane gp = formGrid();
 
         String now = LocalDateTime.now().plusDays(1)
                 .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
 
-        TextField tCli   = field(visita != null ? visita.getIdCliente()      : "");
-        TextField tInm   = field(visita != null ? visita.getCodigoInmueble() : "");
-        TextField tFecha = field(visita != null ? visita.getFechaHora()      : now);
-        TextField tObs   = field(visita != null ? visita.getObservaciones()  : "");
+        TextField tCli   = f(visita!=null ? visita.getIdCliente()      : "");
+        TextField tInm   = f(visita!=null ? visita.getCodigoInmueble() : "");
+        TextField tFecha = f(visita!=null ? visita.getFechaHora()      : now);
+        TextField tObs   = f(visita!=null ? visita.getObservaciones()  : "");
 
         List<Asesor> asesores = svc.getTodosAsesores();
         ComboBox<String> cAs = new ComboBox<>();
+        cAs.setMaxWidth(Double.MAX_VALUE);
         asesores.forEach(a -> cAs.getItems().add(a.getCodigo() + " — " + a.getNombre()));
-        if (visita != null && visita.getIdAsesor() != null)
-            cAs.getItems().stream().filter(s -> s.startsWith(visita.getIdAsesor()))
-               .findFirst().ifPresent(cAs::setValue);
+        if (visita!=null && visita.getIdAsesor()!=null)
+            cAs.getItems().stream().filter(s->s.startsWith(visita.getIdAsesor())).findFirst().ifPresent(cAs::setValue);
         else if (!cAs.getItems().isEmpty()) cAs.setValue(cAs.getItems().get(0));
 
-        ComboBox<String> cPrior = new ComboBox<>(FXCollections.observableArrayList("NORMAL","ALTA","VIP"));
-        cPrior.setValue(visita != null ? visita.getPrioridad().name() : "NORMAL");
+        ComboBox<String> cPrior = cmb("NORMAL","ALTA","VIP");
+        cPrior.setValue(visita!=null ? visita.getPrioridad().name() : "NORMAL");
 
-        ComboBox<String> cEst = new ComboBox<>(FXCollections.observableArrayList(
-            "PENDIENTE","CONFIRMADA","REALIZADA","CANCELADA","REPROGRAMADA"));
-        cEst.setValue(visita != null ? visita.getEstado().name() : "PENDIENTE");
+        ComboBox<String> cEst = cmb("PENDIENTE","CONFIRMADA","REALIZADA","CANCELADA","REPROGRAMADA");
+        cEst.setValue(visita!=null ? visita.getEstado().name() : "PENDIENTE");
 
-        int r = 0;
-        gp.add(lbl("ID Cliente *"),0,r);          gp.add(tCli,1,r++);
-        gp.add(lbl("Código Inmueble *"),0,r);     gp.add(tInm,1,r++);
-        gp.add(lbl("Fecha (yyyy-MM-dd HH:mm)"),0,r); gp.add(tFecha,1,r++);
-        gp.add(lbl("Asesor"),0,r);                gp.add(cAs,1,r++);
-        gp.add(lbl("Prioridad"),0,r);             gp.add(cPrior,1,r++);
-        gp.add(lbl("Estado"),0,r);                gp.add(cEst,1,r++);
-        gp.add(lbl("Observaciones"),0,r);         gp.add(tObs,1,r++);
+        int r=0;
+        row(gp,r++,"ID Cliente *",            tCli);
+        row(gp,r++,"Código Inmueble *",        tInm);
+        row(gp,r++,"Fecha (yyyy-MM-dd HH:mm)", tFecha);
+        row(gp,r++,"Asesor",                   cAs);
+        row(gp,r++,"Prioridad",                cPrior);
+        row(gp,r++,"Estado",                   cEst);
+        row(gp,r++,"Observaciones",            tObs);
 
-        gp.getChildren().forEach(n -> {
-            if (n instanceof ComboBox<?> cb) cb.setPrefWidth(250);
-            if (n instanceof TextField tf)  tf.setPrefWidth(250);
-        });
-
-        Button btnG = new Button(visita == null ? "Agendar" : "Actualizar");
+        Button btnG = new Button(visita==null ? "✔  Agendar" : "✔  Actualizar");
         btnG.getStyleClass().add("btn-primary");
         Button btnC = new Button("Cancelar"); btnC.getStyleClass().add("btn-icon");
         btnC.setOnAction(e -> win.close());
 
         btnG.setOnAction(e -> {
             try {
-                if (tCli.getText().isBlank() || tInm.getText().isBlank() || tFecha.getText().isBlank())
+                if (tCli.getText().isBlank()||tInm.getText().isBlank()||tFecha.getText().isBlank())
                     throw new IllegalArgumentException("Cliente, inmueble y fecha son obligatorios.");
-                String codAs = cAs.getValue() != null ? cAs.getValue().split(" — ")[0] : null;
-
-                if (visita == null) {
-                    Visita v = new Visita(
-                        tCli.getText().trim(), tInm.getText().trim(),
-                        tFecha.getText().trim(), codAs,
-                        Visita.Prioridad.valueOf(cPrior.getValue()));
+                String codAs = cAs.getValue()!=null ? cAs.getValue().split(" — ")[0].trim() : "";
+                if (visita==null) {
+                    Visita v = new Visita(tCli.getText().trim(), tInm.getText().trim(),
+                        tFecha.getText().trim(), codAs, Visita.Prioridad.valueOf(cPrior.getValue()));
                     v.setObservaciones(tObs.getText().trim());
-                    boolean ok = svc.agendarVisita(v);
-                    if (!ok) throw new IllegalStateException("No se pudo registrar la visita.");
+                    if (!svc.agendarVisita(v)) throw new IllegalStateException("No se pudo registrar la visita.");
                 } else {
-                    visita.setFechaHora(tFecha.getText().trim());
-                    visita.setIdAsesor(codAs);
+                    visita.setFechaHora(tFecha.getText().trim()); visita.setIdAsesor(codAs);
                     visita.setPrioridad(Visita.Prioridad.valueOf(cPrior.getValue()));
                     visita.setEstado(Visita.Estado.valueOf(cEst.getValue()));
                     visita.setObservaciones(tObs.getText().trim());
                     svc.actualizarVisita(visita);
                 }
                 cargarDatos(); win.close();
-            } catch (Exception ex) { mostrarError(ex.getMessage()); }
+            } catch (Exception ex) { err(ex.getMessage()); }
         });
 
-        HBox botones = new HBox(10, btnC, btnG);
-        botones.setAlignment(Pos.CENTER_RIGHT); botones.setPadding(new Insets(10,20,16,20));
-
-        VBox layout = new VBox(gp, botones);
-        layout.setStyle("-fx-background-color:white;");
-        win.setScene(new Scene(layout));
+        win.setScene(new Scene(dlgLayout(gp, btnC, btnG)));
         win.show();
     }
 
-    private TableColumn<Visita,String> strCol(String name, String field, int w) {
-        TableColumn<Visita,String> c = new TableColumn<>(name);
-        c.setCellValueFactory(new PropertyValueFactory<>(field)); c.setMinWidth(w); return c;
+    // helpers
+    private TableColumn<Visita,String> sc(String n, String f, int w) {
+        TableColumn<Visita,String> c = new TableColumn<>(n);
+        c.setCellValueFactory(new PropertyValueFactory<>(f)); c.setMinWidth(w); return c;
     }
-    private TextField field(String v) { TextField t = new TextField(v); t.getStyleClass().add("text-field"); return t; }
-    private Label     lbl(String txt) { Label l = new Label(txt); l.getStyleClass().add("field-label"); l.setMinWidth(130); return l; }
-    private void mostrarError(String m){ Alert a=new Alert(Alert.AlertType.ERROR,m); a.setTitle("Error"); a.showAndWait(); }
-    private void mostrarInfo(String m) { Alert a=new Alert(Alert.AlertType.INFORMATION,m); a.setTitle("Info"); a.showAndWait(); }
+    private <T> TableCell<Visita,T> badge(java.util.function.Function<String,String> fn) {
+        return new TableCell<>() {
+            @Override protected void updateItem(T v, boolean e) {
+                super.updateItem(v,e); setText(null); setGraphic(null);
+                if (!e && v!=null) { Label l=new Label(v.toString()); l.getStyleClass().add(fn.apply(v.toString())); setGraphic(l); }
+            }
+        };
+    }
+    private GridPane formGrid() {
+        GridPane gp=new GridPane(); gp.setHgap(12); gp.setVgap(10); gp.setPadding(new Insets(20));
+        gp.setStyle("-fx-background-color:white;");
+        gp.getColumnConstraints().addAll(new ColumnConstraints(145), cc2());
+        return gp;
+    }
+    private void row(GridPane gp, int r, String lbl, javafx.scene.Node ctrl) {
+        Label l=new Label(lbl); l.getStyleClass().add("field-label");
+        gp.add(l,0,r); gp.add(ctrl,1,r);
+        if (ctrl instanceof Region rg) { rg.setMaxWidth(Double.MAX_VALUE); GridPane.setFillWidth(ctrl,true); }
+    }
+    private VBox dlgLayout(GridPane gp, Button btnC, Button btnG) {
+        ScrollPane sp=new ScrollPane(gp); sp.setFitToWidth(true); sp.setStyle("-fx-background:white; -fx-background-color:white;");
+        HBox btns=new HBox(10,btnC,btnG); btns.setAlignment(Pos.CENTER_RIGHT);
+        btns.setPadding(new Insets(10,20,16,20));
+        btns.setStyle("-fx-background-color:white; -fx-border-color:#e8edf2 transparent transparent transparent; -fx-border-width:1 0 0 0;");
+        VBox v=new VBox(sp,btns); v.setStyle("-fx-background-color:white;"); VBox.setVgrow(sp,Priority.ALWAYS); return v;
+    }
+    private TextField f(String v) { TextField t=new TextField(v); t.setMaxWidth(Double.MAX_VALUE); return t; }
+    private ComboBox<String> cmb(String... items) { ComboBox<String> c=new ComboBox<>(FXCollections.observableArrayList(items)); c.setMaxWidth(Double.MAX_VALUE); return c; }
+    private ColumnConstraints cc2() { ColumnConstraints c=new ColumnConstraints(); c.setHgrow(Priority.ALWAYS); c.setFillWidth(true); return c; }
+    private void err(String m) { new Alert(Alert.AlertType.ERROR,m,ButtonType.OK).showAndWait(); }
 }

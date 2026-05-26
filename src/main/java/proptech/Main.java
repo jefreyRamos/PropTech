@@ -17,12 +17,15 @@ public class Main extends Application {
         MainView mainView = new MainView(stage);
         Scene scene = mainView.buildScene();
 
+        // Tamaño inicial grande y bien definido
         stage.setTitle("PropTech — Sistema de Gestión Inmobiliaria");
         stage.setScene(scene);
-        stage.setMinWidth(1100);
-        stage.setMinHeight(700);
-        stage.setWidth(1280);
-        stage.setHeight(800);
+        stage.setMinWidth(900);
+        stage.setMinHeight(600);
+        stage.setWidth(1200);
+        stage.setHeight(780);
+        // Maximizar al inicio para que se vea completo
+        stage.setMaximized(true);
         stage.show();
     }
 

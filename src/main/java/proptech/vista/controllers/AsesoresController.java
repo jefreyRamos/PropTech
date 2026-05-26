@@ -2,12 +2,24 @@ package proptech.vista.controllers;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.Label;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.layout.*;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import proptech.modelo.Asesor;
@@ -21,28 +33,35 @@ public class AsesoresController {
     private TextField txtBusqueda;
 
     public Pane build() {
-        VBox root = new VBox(14);
-        root.setPrefSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        root.setPadding(new Insets(4));
-        root.getChildren().addAll(buildHeader(), buildTabla());
-        VBox.setVgrow(buildTabla(), Priority.ALWAYS);
+        VBox root = new VBox(12);
+        root.getStyleClass().add("modulo-root");
+        root.setMaxWidth(Double.MAX_VALUE);
+        root.setMaxHeight(Double.MAX_VALUE);
+
+        tabla = buildTabla();
+        VBox.setVgrow(tabla, Priority.ALWAYS);
+
+        root.getChildren().addAll(buildHeader(), tabla, buildAccionesBar());
         cargarDatos();
         return root;
     }
 
+    // ── Header ─────────────────────────────────────────────────────────────
     private HBox buildHeader() {
-        HBox hb = new HBox(12); hb.setAlignment(Pos.CENTER_LEFT);
-        hb.setStyle("-fx-background-color:white;-fx-background-radius:12;-fx-padding:16 20;-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.06),8,0,0,2);");
+        HBox hb = new HBox(12);
+        hb.getStyleClass().add("module-header");
+        hb.setAlignment(Pos.CENTER_LEFT);
+        hb.setMaxWidth(Double.MAX_VALUE);
 
-        Label title = new Label("👔 Gestión de Asesores");
-        title.setStyle("-fx-font-size:17px;-fx-font-weight:bold;-fx-text-fill:#1a202c;");
+        Label title = new Label("👔  Gestión de Asesores");
+        title.getStyleClass().add("module-title");
 
         Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
 
         txtBusqueda = new TextField();
-        txtBusqueda.setPromptText("🔍  Buscar por nombre o zona...");
+        txtBusqueda.setPromptText("🔍  Buscar nombre, código o zona...");
         txtBusqueda.getStyleClass().add("search-field");
-        txtBusqueda.setPrefWidth(240);
+        txtBusqueda.setPrefWidth(260);
         txtBusqueda.textProperty().addListener((o, a, n) -> buscarLocal(n));
 
         Button btnNuevo = new Button("＋  Nuevo Asesor");
@@ -53,109 +72,146 @@ public class AsesoresController {
         return hb;
     }
 
+    // ── Tabla ──────────────────────────────────────────────────────────────
     @SuppressWarnings("unchecked")
     private TableView<Asesor> buildTabla() {
-        tabla = new TableView<>();
-        tabla.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        tabla.setPrefHeight(Double.MAX_VALUE);
-        tabla.setPlaceholder(new Label("Sin asesores registrados."));
-        VBox.setVgrow(tabla, Priority.ALWAYS);
+        TableView<Asesor> t = new TableView<>();
+        t.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        t.setMaxWidth(Double.MAX_VALUE);
+        t.setMaxHeight(Double.MAX_VALUE);
+        t.setPlaceholder(new Label("Sin asesores registrados.  Haz clic en '＋ Nuevo Asesor'."));
 
-        TableColumn<Asesor,String> cCod  = strCol("Código",       "codigo",            80);
-        TableColumn<Asesor,String> cNom  = strCol("Nombre",       "nombre",           170);
-        TableColumn<Asesor,String> cCont = strCol("Contacto",     "contacto",         130);
-        TableColumn<Asesor,String> cEsp  = strCol("Especialidad", "especialidad",     130);
-        TableColumn<Asesor,String> cZona = strCol("Zona Asignada","zonaAsignada",     120);
+        TableColumn<Asesor,String> cCod  = sc("Código",        "codigo",        80);
+        TableColumn<Asesor,String> cNom  = sc("Nombre",        "nombre",        190);
+        TableColumn<Asesor,String> cCont = sc("Contacto",      "contacto",      140);
+        TableColumn<Asesor,String> cEsp  = sc("Especialidad",  "especialidad",  140);
+        TableColumn<Asesor,String> cZona = sc("Zona Asignada", "zonaAsignada",  140);
 
         TableColumn<Asesor,Number> cCier = new TableColumn<>("Cierres");
         cCier.setCellValueFactory(new PropertyValueFactory<>("cierresRealizados"));
         cCier.setMinWidth(75);
+        cCier.setCellFactory(tc -> new TableCell<>() {
+            @Override protected void updateItem(Number v, boolean e) {
+                super.updateItem(v, e);
+                if (e || v == null) { setText(null); setGraphic(null); return; }
+                Label l = new Label(v.toString());
+                l.getStyleClass().add(v.intValue() >= 3 ? "badge-green"
+                                    : v.intValue() >= 1 ? "badge-orange" : "badge-gray");
+                setGraphic(l); setText(null);
+            }
+        });
 
         TableColumn<Asesor,Number> cCom = new TableColumn<>("Comisión Total");
         cCom.setCellValueFactory(cd -> cd.getValue().comisionTotalProperty());
-        cCom.setMinWidth(130);
+        cCom.setMinWidth(140);
         cCom.setCellFactory(tc -> new TableCell<>() {
-            @Override protected void updateItem(Number v, boolean empty) {
-                super.updateItem(v,empty);
-                setText(empty||v==null ? null : "$"+String.format("%,.0f",v.doubleValue()));
+            @Override protected void updateItem(Number v, boolean e) {
+                super.updateItem(v, e);
+                if (e || v == null) { setText(null); return; }
+                setText("$" + String.format("%,.0f", v.doubleValue()));
+                setStyle("-fx-font-weight:bold; -fx-text-fill:#15803d;");
             }
         });
 
-        // Columna de efectividad calculada
-        TableColumn<Asesor,String> cEfec = new TableColumn<>("Efectividad");
-        cEfec.setMinWidth(100);
-        cEfec.setCellFactory(tc -> new TableCell<>() {
-            @Override protected void updateItem(String v, boolean empty) {
-                super.updateItem(v, empty); setGraphic(null); setText(null);
-                if (!empty) {
-                    Asesor a = getTableView().getItems().get(getIndex());
-                    int cierres = a.getCierresRealizados();
-                    Label l = new Label(cierres == 0 ? "Sin cierres" : cierres + " cierres");
-                    l.getStyleClass().add(cierres >= 3 ? "badge-green" : cierres >= 1 ? "badge-orange" : "badge-red");
-                    setGraphic(l);
-                }
-            }
-        });
-
-        TableColumn<Asesor,Void> cAcc = new TableColumn<>("Acciones");
-        cAcc.setMinWidth(110); cAcc.setMaxWidth(110);
+        TableColumn<Asesor, Void> cAcc = new TableColumn<>("Acciones");
+        cAcc.setMinWidth(130); cAcc.setMaxWidth(140);
         cAcc.setCellFactory(tc -> new TableCell<>() {
-            final Button bEdit = new Button("✏"); final Button bDel = new Button("🗑");
-            final HBox box = new HBox(4, bEdit, bDel);
-            { bEdit.getStyleClass().add("btn-icon"); bDel.getStyleClass().add("btn-icon");
-              box.setAlignment(Pos.CENTER);
-              bEdit.setOnAction(e -> abrirFormulario(getTableView().getItems().get(getIndex())));
-              bDel.setOnAction(e  -> confirmarEliminar(getTableView().getItems().get(getIndex())));
+            final Button bEdit = btn("✏  Editar", "btn-edit");
+            final Button bDel  = btn("🗑  Borrar",  "btn-delete");
+            final HBox box     = new HBox(6, bEdit, bDel);
+            {
+                box.setAlignment(Pos.CENTER);
+                bEdit.setOnAction(e -> abrirFormulario(datos.get(getIndex())));
+                bDel.setOnAction(e  -> confirmarEliminar(datos.get(getIndex())));
             }
-            @Override protected void updateItem(Void v, boolean empty){ super.updateItem(v,empty); setGraphic(empty?null:box); }
+            @Override protected void updateItem(Void v, boolean e) {
+                super.updateItem(v, e); setGraphic(e ? null : box);
+            }
         });
 
-        tabla.getColumns().addAll(cCod,cNom,cCont,cEsp,cZona,cCier,cCom,cEfec,cAcc);
-        tabla.setItems(datos);
-        return tabla;
+        t.getColumns().addAll(cCod, cNom, cCont, cEsp, cZona, cCier, cCom, cAcc);
+        t.setItems(datos);
+        return t;
     }
 
-    private void cargarDatos() { datos.setAll(svc.getTodosAsesores()); }
+    // ── Acciones bar ───────────────────────────────────────────────────────
+    private HBox buildAccionesBar() {
+        HBox bar = new HBox(10);
+        bar.getStyleClass().add("acciones-bar");
+        bar.setAlignment(Pos.CENTER_RIGHT);
+        bar.setMaxWidth(Double.MAX_VALUE);
+
+        Label info = new Label("Gestione sus asesores inmobiliarios — edite directamente desde la tabla");
+        info.setStyle("-fx-font-size:11.5px; -fx-text-fill:#94a3b8; -fx-font-style:italic;");
+
+        Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
+
+        Button btnReload = new Button("↺  Recargar");
+        btnReload.getStyleClass().add("btn-secondary");
+        btnReload.setOnAction(e -> cargarDatos());
+
+        bar.getChildren().addAll(info, sp, btnReload);
+        return bar;
+    }
+
+    // ── Lógica ─────────────────────────────────────────────────────────────
+    private void cargarDatos() {
+        datos.setAll(svc.getTodosAsesores());
+    }
 
     private void buscarLocal(String q) {
         if (q == null || q.isBlank()) { cargarDatos(); return; }
         String lq = q.toLowerCase();
         datos.setAll(svc.getTodosAsesores().stream().filter(a ->
-            a.getNombre().toLowerCase().contains(lq) ||
-            a.getCodigo().toLowerCase().contains(lq) ||
-            (a.getZonaAsignada() != null && a.getZonaAsignada().toLowerCase().contains(lq))).toList());
+            safe(a.getNombre()).contains(lq) ||
+            safe(a.getCodigo()).contains(lq) ||
+            safe(a.getZonaAsignada()).contains(lq) ||
+            safe(a.getEspecialidad()).contains(lq)).toList());
     }
 
+    // ── Formulario modal ───────────────────────────────────────────────────
     private void abrirFormulario(Asesor asesor) {
         Stage win = new Stage();
         win.initModality(Modality.APPLICATION_MODAL);
-        win.setTitle(asesor == null ? "Nuevo Asesor" : "Editar Asesor");
-        win.setWidth(450); win.setHeight(360);
+        win.setTitle(asesor == null ? "➕ Nuevo Asesor" : "✏ Editar Asesor — " + asesor.getNombre());
+        win.setWidth(480); win.setHeight(420); win.setResizable(false);
 
+        // Header oscuro
+        VBox header = new VBox(4);
+        header.getStyleClass().add("form-dialog-header");
+        Label hTitle = new Label(asesor == null ? "Nuevo Asesor" : "Editar Asesor");
+        hTitle.getStyleClass().add("form-dialog-title");
+        Label hSub = new Label(asesor == null ? "Complete los datos del nuevo asesor"
+                                              : "Modifique los datos del asesor");
+        hSub.getStyleClass().add("form-dialog-subtitle");
+        header.getChildren().addAll(hTitle, hSub);
+
+        // Body con formulario
         GridPane gp = new GridPane();
-        gp.setHgap(12); gp.setVgap(10); gp.setPadding(new Insets(20));
-        gp.setStyle("-fx-background-color:white;");
+        gp.getStyleClass().add("form-dialog-body");
+        gp.setHgap(14); gp.setVgap(12);
+        gp.getColumnConstraints().addAll(cc(120), cc2());
 
-        TextField tCod  = field(asesor != null ? asesor.getCodigo()       : "");
-        TextField tNom  = field(asesor != null ? asesor.getNombre()       : "");
-        TextField tCont = field(asesor != null ? asesor.getContacto()     : "");
-        TextField tEsp  = field(asesor != null ? asesor.getEspecialidad() : "");
-        TextField tZona = field(asesor != null ? asesor.getZonaAsignada() : "");
+        TextField tCod  = f(asesor != null ? asesor.getCodigo()       : "");
+        TextField tNom  = f(asesor != null ? asesor.getNombre()       : "");
+        TextField tCont = f(asesor != null ? asesor.getContacto()     : "");
+        TextField tEsp  = f(asesor != null ? asesor.getEspecialidad() : "");
+        TextField tZona = f(asesor != null ? asesor.getZonaAsignada() : "");
 
-        if (asesor != null) tCod.setDisable(true);
+        if (asesor != null) { tCod.setDisable(true); tCod.setStyle("-fx-opacity:0.6;"); }
 
         int r = 0;
-        gp.add(lbl("Código *"),      0,r); gp.add(tCod,1,r++);
-        gp.add(lbl("Nombre *"),      0,r); gp.add(tNom,1,r++);
-        gp.add(lbl("Contacto"),      0,r); gp.add(tCont,1,r++);
-        gp.add(lbl("Especialidad"),  0,r); gp.add(tEsp,1,r++);
-        gp.add(lbl("Zona Asignada"), 0,r); gp.add(tZona,1,r++);
+        row(gp, r++, "Código *",      tCod);
+        row(gp, r++, "Nombre *",      tNom);
+        row(gp, r++, "Contacto",      tCont);
+        row(gp, r++, "Especialidad",  tEsp);
+        row(gp, r++, "Zona Asignada", tZona);
 
-        gp.getChildren().forEach(n -> { if (n instanceof TextField tf) tf.setPrefWidth(240); });
-
-        Button btnG = new Button(asesor == null ? "Registrar" : "Actualizar");
+        // Footer con botones
+        Button btnG = new Button(asesor == null ? "✔  Registrar Asesor" : "✔  Guardar Cambios");
         btnG.getStyleClass().add("btn-primary");
-        Button btnC = new Button("Cancelar"); btnC.getStyleClass().add("btn-icon");
+        Button btnC = new Button("Cancelar");
+        btnC.getStyleClass().add("btn-secondary");
         btnC.setOnAction(e -> win.close());
 
         btnG.setOnAction(e -> {
@@ -168,35 +224,50 @@ public class AsesoresController {
                 obj.setContacto(tCont.getText().trim());
                 obj.setEspecialidad(tEsp.getText().trim());
                 obj.setZonaAsignada(tZona.getText().trim());
-
                 boolean ok = asesor == null ? svc.registrarAsesor(obj) : svc.actualizarAsesor(obj);
                 if (!ok) throw new IllegalStateException("Ya existe un asesor con ese código.");
                 cargarDatos(); win.close();
-            } catch (Exception ex) { mostrarError(ex.getMessage()); }
+            } catch (Exception ex) { err(ex.getMessage()); }
         });
 
-        HBox botones = new HBox(10, btnC, btnG);
-        botones.setAlignment(Pos.CENTER_RIGHT); botones.setPadding(new Insets(10,20,16,20));
+        HBox footer = new HBox(10, btnC, btnG);
+        footer.getStyleClass().add("form-dialog-footer");
+        footer.setAlignment(Pos.CENTER_RIGHT);
 
-        VBox layout = new VBox(gp, botones);
-        layout.setStyle("-fx-background-color:white;");
+        VBox layout = new VBox(header, gp, footer);
+        layout.getStyleClass().add("form-dialog");
+        VBox.setVgrow(gp, Priority.ALWAYS);
         win.setScene(new Scene(layout));
         win.show();
     }
 
     private void confirmarEliminar(Asesor a) {
         Alert al = new Alert(Alert.AlertType.CONFIRMATION,
-            "¿Eliminar asesor " + a.getNombre() + " (" + a.getCodigo() + ")?",
+            "¿Eliminar al asesor " + a.getNombre() + "?\nEsta acción no se puede deshacer.",
             ButtonType.YES, ButtonType.NO);
         al.setTitle("Confirmar eliminación");
-        al.showAndWait().ifPresent(r -> { if (r==ButtonType.YES){ svc.eliminarAsesor(a.getCodigo()); cargarDatos(); } });
+        al.setHeaderText("Eliminar Asesor");
+        al.showAndWait().ifPresent(r -> {
+            if (r == ButtonType.YES) { svc.eliminarAsesor(a.getCodigo()); cargarDatos(); }
+        });
     }
 
-    private TableColumn<Asesor,String> strCol(String name, String field, int w) {
-        TableColumn<Asesor,String> c = new TableColumn<>(name);
-        c.setCellValueFactory(new PropertyValueFactory<>(field)); c.setMinWidth(w); return c;
+    // ── Helpers ────────────────────────────────────────────────────────────
+    private TableColumn<Asesor,String> sc(String n, String f, int w) {
+        TableColumn<Asesor,String> c = new TableColumn<>(n);
+        c.setCellValueFactory(new PropertyValueFactory<>(f));
+        c.setMinWidth(w);
+        return c;
     }
-    private TextField field(String v) { TextField t = new TextField(v); t.getStyleClass().add("text-field"); return t; }
-    private Label     lbl(String txt) { Label l = new Label(txt); l.getStyleClass().add("field-label"); l.setMinWidth(110); return l; }
-    private void mostrarError(String m){ Alert a=new Alert(Alert.AlertType.ERROR,m); a.setTitle("Error"); a.showAndWait(); }
+    private void row(GridPane gp, int r, String lbl, javafx.scene.Node ctrl) {
+        Label l = new Label(lbl); l.getStyleClass().add("field-label");
+        gp.add(l, 0, r); gp.add(ctrl, 1, r);
+        if (ctrl instanceof Region rg) { rg.setMaxWidth(Double.MAX_VALUE); GridPane.setFillWidth(ctrl, true); }
+    }
+    private TextField f(String v)   { TextField t = new TextField(v); t.setMaxWidth(Double.MAX_VALUE); return t; }
+    private ColumnConstraints cc(int w)  { return new ColumnConstraints(w); }
+    private ColumnConstraints cc2() { ColumnConstraints c = new ColumnConstraints(); c.setHgrow(Priority.ALWAYS); c.setFillWidth(true); return c; }
+    private String safe(String s)   { return s == null ? "" : s.toLowerCase(); }
+    private Button btn(String txt, String css) { Button b = new Button(txt); b.getStyleClass().add(css); return b; }
+    private void err(String m) { Alert a = new Alert(Alert.AlertType.ERROR, m, ButtonType.OK); a.setTitle("Error"); a.showAndWait(); }
 }

@@ -24,41 +24,39 @@ import proptech.repositorio.VisitaRepository;
 
 /**
  * SERVICIO CENTRAL — lógica de negocio.
- *
- * Integración BD ↔ Estructuras de datos:
- *   BD SQLite → fuente de verdad (persistencia)
- *   TablaHash → caché O(1) en memoria para Inmueble / Cliente / Asesor
- *   ArbolBST  → inmuebles ordenados por precio (inOrden, rango)
- *   ColaPrioridad → visitas VIP/ALTA se atienden primero
- *   Grafo     → relaciones cliente→inmueble para recomendaciones
- *   Pila (Deque) → historial de acciones para deshacer
+ * CORRECCIÓN: getTodosInmuebles / getTodosClientes / getTodosAsesores
+ * siempre consultan la BD (no solo la caché) para garantizar que
+ * los datos guardados aparezcan en pantalla tras reiniciar.
  */
 public class PropTechService {
 
-    // ── Repositorios ───────────────────────────────────────────────────────
     private final InmuebleRepository repoInmueble = new InmuebleRepository();
     private final ClienteRepository  repoCliente  = new ClienteRepository();
     private final AsesorRepository   repoAsesor   = new AsesorRepository();
     private final VisitaRepository   repoVisita   = new VisitaRepository();
 
-    // ── Estructuras de datos en memoria ───────────────────────────────────
-    private final TablaHash<String, Inmueble>       cacheInmuebles = new TablaHash<>();
-    private final TablaHash<String, Cliente>         cacheClientes  = new TablaHash<>();
-    private final TablaHash<String, Asesor>          cacheAsesores  = new TablaHash<>();
-    private final ArbolBST<Inmueble>                 arbolPrecio    = new ArbolBST<>();
-    private final ColaPrioridad<VisitaPriorizada>    colaVisitas    = new ColaPrioridad<>();
-    private final Grafo                              grafo          = new Grafo();
-    private final Deque<String>                      pilaDeshacer   = new ArrayDeque<>();
+    private final TablaHash<String, Inmueble>    cacheInmuebles = new TablaHash<>();
+    private final TablaHash<String, Cliente>     cacheClientes  = new TablaHash<>();
+    private final TablaHash<String, Asesor>      cacheAsesores  = new TablaHash<>();
+    private final ArbolBST<Inmueble>             arbolPrecio    = new ArbolBST<>();
+    private final ColaPrioridad<VisitaPriorizada> colaVisitas   = new ColaPrioridad<>();
+    private final Grafo                          grafo          = new Grafo();
+    private final Deque<String>                  pilaDeshacer   = new ArrayDeque<>();
 
-    // ── Singleton ──────────────────────────────────────────────────────────
     private static PropTechService instancia;
+
     public static PropTechService getInstance() {
         if (instancia == null) instancia = new PropTechService();
         return instancia;
     }
-    private PropTechService() { cargarCache(); }
 
+    private PropTechService() {
+        cargarCache();
+    }
+
+    /** Carga BD → estructuras en memoria al arrancar */
     private void cargarCache() {
+        // Limpiar antes de recargar (útil si se llama tras reiniciar)
         repoInmueble.listarTodos().forEach(i -> {
             cacheInmuebles.put(i.getCodigo(), i);
             arbolPrecio.insertar(i.getPrecio(), i);
@@ -68,13 +66,15 @@ public class PropTechService {
             cacheClientes.put(c.getIdentificacion(), c);
             grafo.agregarVertice("CLI:" + c.getIdentificacion());
         });
-        repoAsesor.listarTodos().forEach(a -> cacheAsesores.put(a.getCodigo(), a));
-        System.out.printf("[Service] Caché → %d inmuebles | %d clientes | %d asesores%n",
+        repoAsesor.listarTodos().forEach(a ->
+            cacheAsesores.put(a.getCodigo(), a));
+
+        System.out.printf("[Service] Cache → %d inmuebles | %d clientes | %d asesores%n",
                 cacheInmuebles.size(), cacheClientes.size(), cacheAsesores.size());
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // INMUEBLES
+    // INMUEBLES — SIEMPRE lee de BD para garantizar persistencia visible
     // ══════════════════════════════════════════════════════════════════════
 
     public boolean registrarInmueble(Inmueble i) {
@@ -89,9 +89,10 @@ public class PropTechService {
 
     public boolean actualizarInmueble(Inmueble i) {
         Inmueble anterior = cacheInmuebles.get(i.getCodigo());
-        if (anterior == null) return false;
-        pilaDeshacer.push("MOD_INM:" + i.getCodigo() + ":" + anterior.getPrecio());
-        arbolPrecio.eliminar(anterior.getPrecio());
+        if (anterior != null) {
+            pilaDeshacer.push("MOD_INM:" + i.getCodigo() + ":" + anterior.getPrecio());
+            arbolPrecio.eliminar(anterior.getPrecio());
+        }
         if (!repoInmueble.actualizar(i)) return false;
         cacheInmuebles.put(i.getCodigo(), i);
         arbolPrecio.insertar(i.getPrecio(), i);
@@ -100,19 +101,41 @@ public class PropTechService {
 
     public boolean eliminarInmueble(String codigo) {
         Inmueble i = cacheInmuebles.get(codigo);
-        if (i == null || !repoInmueble.eliminar(codigo)) return false;
-        arbolPrecio.eliminar(i.getPrecio());
+        if (!repoInmueble.eliminar(codigo)) return false;
+        if (i != null) arbolPrecio.eliminar(i.getPrecio());
         cacheInmuebles.remove(codigo);
         return true;
     }
 
-    public Inmueble        buscarInmueble(String codigo) { return cacheInmuebles.get(codigo); } // O(1)
-    public List<Inmueble>  getTodosInmuebles()           { return repoInmueble.listarTodos(); }
-    public List<Inmueble>  filtrarInmuebles(String tipo, String fin, double maxPrecio, int minHab, String ciudad) {
+    /** SIEMPRE desde BD — garantiza que datos persistidos sean visibles */
+    public List<Inmueble> getTodosInmuebles() {
+        return repoInmueble.listarTodos();
+    }
+
+    public Inmueble buscarInmueble(String codigo) {
+        Inmueble c = cacheInmuebles.get(codigo);
+        return c != null ? c : repoInmueble.buscarPorCodigo(codigo);
+    }
+
+    public List<Inmueble> filtrarInmuebles(String tipo, String fin,
+                                            double maxPrecio, int minHab, String ciudad) {
         return repoInmueble.buscarConFiltros(tipo, fin, maxPrecio, minHab, ciudad);
     }
-    public List<Inmueble>  inmueblesPorRango(double min, double max) { return arbolPrecio.rango(min, max); }
-    public List<Inmueble>  inmueblesOrdenadosPorPrecio()             { return arbolPrecio.inOrden(); }
+
+    public List<Inmueble> inmueblesPorRango(double min, double max) {
+        // Usa ArbolBST en memoria; si está vacío recarga de BD
+        if (arbolPrecio.isEmpty()) {
+            repoInmueble.listarTodos().forEach(i -> arbolPrecio.insertar(i.getPrecio(), i));
+        }
+        return arbolPrecio.rango(min, max);
+    }
+
+    public List<Inmueble> inmueblesOrdenadosPorPrecio() {
+        if (arbolPrecio.isEmpty()) {
+            repoInmueble.listarTodos().forEach(i -> arbolPrecio.insertar(i.getPrecio(), i));
+        }
+        return arbolPrecio.inOrden();
+    }
 
     // ══════════════════════════════════════════════════════════════════════
     // CLIENTES
@@ -138,8 +161,15 @@ public class PropTechService {
         return true;
     }
 
-    public Cliente        buscarCliente(String id) { return cacheClientes.get(id); } // O(1)
-    public List<Cliente>  getTodosClientes()        { return repoCliente.listarTodos(); }
+    /** SIEMPRE desde BD */
+    public List<Cliente> getTodosClientes() {
+        return repoCliente.listarTodos();
+    }
+
+    public Cliente buscarCliente(String id) {
+        Cliente c = cacheClientes.get(id);
+        return c != null ? c : repoCliente.buscarPorId(id);
+    }
 
     // ══════════════════════════════════════════════════════════════════════
     // ASESORES
@@ -164,8 +194,15 @@ public class PropTechService {
         return true;
     }
 
-    public Asesor        buscarAsesor(String codigo) { return cacheAsesores.get(codigo); }
-    public List<Asesor>  getTodosAsesores()          { return repoAsesor.listarTodos(); }
+    /** SIEMPRE desde BD */
+    public List<Asesor> getTodosAsesores() {
+        return repoAsesor.listarTodos();
+    }
+
+    public Asesor buscarAsesor(String codigo) {
+        Asesor a = cacheAsesores.get(codigo);
+        return a != null ? a : repoAsesor.buscarPorCodigo(codigo);
+    }
 
     // ══════════════════════════════════════════════════════════════════════
     // VISITAS
@@ -173,7 +210,8 @@ public class PropTechService {
 
     public boolean agendarVisita(Visita v) {
         if (!repoVisita.insertar(v)) return false;
-        grafo.agregarArista("CLI:" + v.getIdCliente(), "INM:" + v.getCodigoInmueble(), 1.0, "visito");
+        grafo.agregarArista("CLI:" + v.getIdCliente(),
+                            "INM:" + v.getCodigoInmueble(), 1.0, "visito");
         int p = switch (v.getPrioridad()) { case VIP -> 3; case ALTA -> 2; default -> 1; };
         colaVisitas.insertar(new VisitaPriorizada(v.getId(), p, v.getFechaHora()));
         repoInmueble.incrementarVisitas(v.getCodigoInmueble());
@@ -182,25 +220,31 @@ public class PropTechService {
         return true;
     }
 
-    public boolean            actualizarVisita(Visita v) { return repoVisita.actualizar(v); }
-    public boolean            eliminarVisita(int id)     { return repoVisita.eliminar(id); }
-    public List<Visita>       getTodosVisitas()          { return repoVisita.listarTodas(); }
-    public List<Visita>       getVisitasPendientes()     { return repoVisita.listarPendientes(); }
-    public VisitaPriorizada   procesarSiguiente()        { return colaVisitas.isEmpty() ? null : colaVisitas.extraer(); }
+    public boolean actualizarVisita(Visita v) { return repoVisita.actualizar(v); }
+    public boolean eliminarVisita(int id)     { return repoVisita.eliminar(id); }
+
+    /** SIEMPRE desde BD con JOIN */
+    public List<Visita> getTodosVisitas()      { return repoVisita.listarTodas(); }
+    public List<Visita> getVisitasPendientes() { return repoVisita.listarPendientes(); }
+
+    public VisitaPriorizada procesarSiguiente() {
+        return colaVisitas.isEmpty() ? null : colaVisitas.extraer();
+    }
 
     // ══════════════════════════════════════════════════════════════════════
-    // RECOMENDACIONES (Grafo + TablaHash + ArbolBST)
+    // RECOMENDACIONES
     // ══════════════════════════════════════════════════════════════════════
 
     public List<Inmueble> recomendar(String idCliente) {
-        Cliente c = cacheClientes.get(idCliente);
+        Cliente c = buscarCliente(idCliente);
         if (c == null) return Collections.emptyList();
         Set<String> yaVistos = new HashSet<>();
-        for (Grafo.Arista a : grafo.vecinos("CLI:" + idCliente)) yaVistos.add(a.destino);
+        grafo.vecinos("CLI:" + idCliente).forEach(a -> yaVistos.add(a.destino));
         return repoInmueble.listarDisponibles().stream()
                 .filter(i -> !yaVistos.contains("INM:" + i.getCodigo()))
                 .filter(i -> i.getPrecio() <= c.getPresupuesto())
-                .filter(i -> c.getTipoInmuebleDeseado() == null || c.getTipoInmuebleDeseado().isBlank()
+                .filter(i -> c.getTipoInmuebleDeseado() == null
+                             || c.getTipoInmuebleDeseado().isBlank()
                              || i.getTipo().name().equals(c.getTipoInmuebleDeseado()))
                 .filter(i -> i.getHabitaciones() >= c.getMinHabitaciones())
                 .sorted(Comparator.comparingInt(Inmueble::getContadorVisitas).reversed())
@@ -208,53 +252,48 @@ public class PropTechService {
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // ALERTAS
+    // ALERTAS / DASHBOARD
     // ══════════════════════════════════════════════════════════════════════
 
     public List<Inmueble> inmueblesConPocoInteres() {
-        return cacheInmuebles.values().stream()
+        return repoInmueble.listarTodos().stream()
                 .filter(i -> i.isDisponible() && i.getContadorVisitas() == 0)
                 .collect(Collectors.toList());
     }
 
     public List<Inmueble> inmueblesAltaDemanda() {
-        return cacheInmuebles.values().stream()
+        return repoInmueble.listarTodos().stream()
                 .sorted(Comparator.comparingInt(Inmueble::getContadorVisitas).reversed())
                 .limit(5).collect(Collectors.toList());
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // DASHBOARD
-    // ══════════════════════════════════════════════════════════════════════
-
-    public int    countInmuebles()         { return cacheInmuebles.size(); }
-    public int    countClientes()          { return cacheClientes.size(); }
-    public int    countAsesores()          { return cacheAsesores.size(); }
-    public int    countVisitasPendientes() { return repoVisita.contarPendientes(); }
-    public Grafo  getGrafo()              { return grafo; }
+    public int    countInmuebles()          { return repoInmueble.listarTodos().size(); }
+    public int    countClientes()           { return repoCliente.listarTodos().size(); }
+    public int    countAsesores()           { return repoAsesor.listarTodos().size(); }
+    public int    countVisitasPendientes()  { return repoVisita.contarPendientes(); }
+    public Grafo  getGrafo()               { return grafo; }
 
     public String getInfoEstructuras() {
         return String.format(
-            "TablaHash inmuebles  : %d entradas\n" +
-            "TablaHash clientes   : %d entradas\n" +
-            "TablaHash asesores   : %d entradas\n" +
-            "ArbolBST precio      : %d nodos\n" +
+            "TablaHash inmuebles  : %d entradas  (O(1) acceso)\n" +
+            "TablaHash clientes   : %d entradas  (O(1) acceso)\n" +
+            "ArbolBST precio      : %d nodos     (orden/rango)\n" +
             "Grafo                : %s\n" +
             "Cola prioridad       : %d visitas urgentes\n" +
             "Pila deshacer        : %d acciones",
-            cacheInmuebles.size(), cacheClientes.size(), cacheAsesores.size(),
+            cacheInmuebles.size(), cacheClientes.size(),
             arbolPrecio.size(), grafo, colaVisitas.size(), pilaDeshacer.size());
     }
 
-    // ── Clase auxiliar para ColaPrioridad ─────────────────────────────────
     public record VisitaPriorizada(int idVisita, int prioridad, String fechaHora)
             implements Comparable<VisitaPriorizada> {
         @Override public int compareTo(VisitaPriorizada o) {
-            if (this.prioridad != o.prioridad) return Integer.compare(this.prioridad, o.prioridad);
+            if (this.prioridad != o.prioridad)
+                return Integer.compare(this.prioridad, o.prioridad);
             return this.fechaHora.compareTo(o.fechaHora);
         }
         @Override public String toString() {
-            return String.format("Visita#%d [prior=%d, %s]", idVisita, prioridad, fechaHora);
+            return String.format("Visita#%d [prioridad=%d, %s]", idVisita, prioridad, fechaHora);
         }
     }
 }

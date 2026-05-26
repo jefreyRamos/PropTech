@@ -1,57 +1,77 @@
 package proptech.vista;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.layout.*;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-import proptech.vista.controllers.*;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
+import proptech.vista.controllers.AsesoresController;
+import proptech.vista.controllers.ClientesController;
+import proptech.vista.controllers.DashboardController;
+import proptech.vista.controllers.InmueblesController;
+import proptech.vista.controllers.VisitasController;
 
 /**
- * VISTA PRINCIPAL — Sidebar + TopBar + Área de contenido.
- * Patrón: Navigation Drawer con paneles intercambiables (sin abrir nuevas ventanas).
+ * VISTA PRINCIPAL — Layout raíz que llena toda la ventana.
+ * Corrección: usa BorderPane para garantizar que el contenido
+ * siempre ocupe el 100% del espacio disponible.
  */
 public class MainView {
 
     private final Stage stage;
-    private Label       topbarTitle;
-    private StackPane   contentArea;
+    private Label     topbarTitle;
+    private Pane      contentArea;
     private final Map<String, Button> navBtns = new LinkedHashMap<>();
-
-    // Paneles (lazy)
-    private Pane dashboardPanel;
-    private Pane inmueblesPanel;
-    private Pane clientesPanel;
-    private Pane visitasPanel;
-    private Pane asesoresPanel;
 
     public MainView(Stage stage) { this.stage = stage; }
 
     public Scene buildScene() {
+        // BorderPane garantiza que center siempre ocupe todo el espacio restante
         BorderPane root = new BorderPane();
-        root.setLeft(buildSidebar());
+        root.setStyle("-fx-background-color:#f0f4f8;");
 
-        VBox right = new VBox();
+        // Sidebar: lado izquierdo fijo
+        VBox sidebar = buildSidebar();
+        root.setLeft(sidebar);
+
+        // Columna derecha: topbar arriba + contenido abajo
+        VBox rightCol = new VBox();
+        rightCol.setFillWidth(true);
+        rightCol.setStyle("-fx-background-color:#f0f4f8;");
+
         HBox topbar = buildTopBar();
-        StackPane content = buildContent();
-        VBox.setVgrow(content, Priority.ALWAYS);
-        right.getChildren().addAll(topbar, content);
-        root.setCenter(right);
 
-        navigate("Dashboard");
+        // contentWrapper: el área que cambia con la navegación
+        contentArea = new StackPane();
+        contentArea.setStyle("-fx-background-color:#f0f4f8;");
+        ((StackPane) contentArea).setAlignment(Pos.TOP_LEFT);
+        VBox.setVgrow(contentArea, Priority.ALWAYS);
 
+        rightCol.getChildren().addAll(topbar, contentArea);
+        root.setCenter(rightCol);
+
+        // Escena al 100% — Stage.setMaximized hace el resto
         Scene scene = new Scene(root);
+
         try {
             scene.getStylesheets().add(
                 getClass().getResource("/proptech/vista/proptech.css").toExternalForm());
         } catch (Exception e) {
-            System.err.println("[CSS] No se pudo cargar proptech.css: " + e.getMessage());
+            System.err.println("[CSS] " + e.getMessage());
         }
+
+        navigate("Dashboard");
         return scene;
     }
 
@@ -60,40 +80,49 @@ public class MainView {
         VBox sb = new VBox();
         sb.getStyleClass().add("sidebar");
         sb.setPrefWidth(220);
+        sb.setMinWidth(220);
+        sb.setMaxWidth(220);
 
         // Logo
-        VBox logo = new VBox(3);
-        logo.setPadding(new Insets(24, 16, 12, 20));
-        Label l1 = new Label("🏢 PropTech");
-        l1.setStyle("-fx-text-fill:white;-fx-font-size:20px;-fx-font-weight:bold;");
-        Label l2 = new Label("Sistema Inmobiliario");
-        l2.setStyle("-fx-text-fill:#64b5f6;-fx-font-size:11px;");
-        logo.getChildren().addAll(l1, l2);
+        VBox logoBox = new VBox(4);
+        logoBox.setPadding(new Insets(24, 16, 16, 20));
+        logoBox.setStyle("-fx-border-color:transparent transparent #243044 transparent;" +
+                         "-fx-border-width:0 0 1 0;");
+        Label logo = new Label("🏢  PropTech");
+        logo.setStyle("-fx-text-fill:white;-fx-font-size:18px;-fx-font-weight:bold;");
+        Label sub  = new Label("Sistema Inmobiliario");
+        sub.setStyle("-fx-text-fill:#4d6b8a;-fx-font-size:11px;");
+        logoBox.getChildren().addAll(logo, sub);
 
-        Region sep = new Region();
-        sep.setStyle("-fx-background-color:#2d3f55;-fx-pref-height:1;");
-        VBox.setMargin(sep, new Insets(0, 0, 8, 0));
+        // Menú de navegación
+        VBox nav = new VBox(3);
+        nav.setPadding(new Insets(14, 0, 0, 0));
 
-        VBox nav = new VBox(2);
-        nav.setPadding(new Insets(8, 0, 0, 0));
         String[][] items = {
-            {"🏠","Dashboard"}, {"🏘","Inmuebles"}, {"👤","Clientes"},
-            {"📅","Visitas"},   {"👔","Asesores"}
+            {"🏠", "Dashboard"},
+            {"🏘", "Inmuebles"},
+            {"👤", "Clientes"},
+            {"📅", "Visitas"},
+            {"👔", "Asesores"}
         };
+
         for (String[] it : items) {
-            Button btn = new Button(it[0] + "  " + it[1]);
+            Button btn = new Button(it[0] + "   " + it[1]);
             btn.getStyleClass().add("nav-btn");
-            btn.setPrefWidth(Double.MAX_VALUE);
+            btn.setMaxWidth(Double.MAX_VALUE);
+            btn.setPrefHeight(44);
             btn.setOnAction(e -> navigate(it[1]));
             navBtns.put(it[1], btn);
             nav.getChildren().add(btn);
         }
 
-        Region sp = new Region(); VBox.setVgrow(sp, Priority.ALWAYS);
-        Label ver = new Label("v1.0 — Estructuras de Datos");
-        ver.setStyle("-fx-text-fill:#455a78;-fx-font-size:10px;-fx-padding:0 0 14 20;");
+        Region spacer = new Region();
+        VBox.setVgrow(spacer, Priority.ALWAYS);
 
-        sb.getChildren().addAll(logo, sep, nav, sp, ver);
+        Label ver = new Label("v2.0  ·  Estructuras de Datos");
+        ver.setStyle("-fx-text-fill:#2d4a66;-fx-font-size:10px;-fx-padding:0 0 16 20;");
+
+        sb.getChildren().addAll(logoBox, nav, spacer, ver);
         return sb;
     }
 
@@ -103,66 +132,57 @@ public class MainView {
         bar.getStyleClass().add("topbar");
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.setSpacing(12);
-        bar.setStyle("-fx-background-color:white;-fx-border-color:transparent transparent #e2e8f0 transparent;-fx-border-width:0 0 1 0;-fx-padding:14 24;");
+        bar.setMaxWidth(Double.MAX_VALUE);
 
         topbarTitle = new Label("Dashboard");
         topbarTitle.getStyleClass().add("topbar-title");
 
-        Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
-        Label user = new Label("👤 Administrador");
-        user.setStyle("-fx-text-fill:#718096;-fx-font-size:13px;");
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+
+        Label user = new Label("👤  Administrador");
+        user.setStyle("-fx-text-fill:#94a3b8;-fx-font-size:13px;");
 
         bar.getChildren().addAll(topbarTitle, sp, user);
         return bar;
     }
 
-    // ── CONTENT AREA ───────────────────────────────────────────────────────
-    private StackPane buildContent() {
-        contentArea = new StackPane();
-        contentArea.setStyle("-fx-background-color:#f0f4f8;");
-        contentArea.setPadding(new Insets(20));
-        VBox.setVgrow(contentArea, Priority.ALWAYS);
-        return contentArea;
-    }
-
     // ── NAVEGACIÓN ─────────────────────────────────────────────────────────
     public void navigate(String target) {
+        // Actualizar estilos del menú
         navBtns.forEach((k, btn) -> {
-            btn.getStyleClass().remove("nav-btn-active");
-            if (!btn.getStyleClass().contains("nav-btn")) btn.getStyleClass().add("nav-btn");
+            btn.getStyleClass().removeAll("nav-btn-active", "nav-btn");
+            btn.getStyleClass().add("nav-btn");
         });
         Button active = navBtns.get(target);
         if (active != null) {
             active.getStyleClass().remove("nav-btn");
             active.getStyleClass().add("nav-btn-active");
         }
+
         topbarTitle.setText(target);
-        contentArea.getChildren().clear();
-        contentArea.getChildren().add(getPanel(target));
+
+        // Reemplazar panel — siempre se reconstruye para mostrar datos frescos
+        ((StackPane) contentArea).getChildren().clear();
+
+        Pane panel = buildPanel(target);
+
+        // El panel debe llenar todo el espacio disponible
+        StackPane.setAlignment(panel, Pos.TOP_LEFT);
+        if (panel instanceof Region r) {
+            r.setMaxWidth(Double.MAX_VALUE);
+            r.setMaxHeight(Double.MAX_VALUE);
+        }
+        ((StackPane) contentArea).getChildren().add(panel);
     }
 
-    private Pane getPanel(String name) {
+    private Pane buildPanel(String name) {
         return switch (name) {
-            case "Inmuebles" -> {
-                if (inmueblesPanel == null) inmueblesPanel = new InmueblesController().build();
-                yield inmueblesPanel;
-            }
-            case "Clientes" -> {
-                if (clientesPanel == null) clientesPanel = new ClientesController().build();
-                yield clientesPanel;
-            }
-            case "Visitas" -> {
-                if (visitasPanel == null) visitasPanel = new VisitasController().build();
-                yield visitasPanel;
-            }
-            case "Asesores" -> {
-                if (asesoresPanel == null) asesoresPanel = new AsesoresController().build();
-                yield asesoresPanel;
-            }
-            default -> {
-                if (dashboardPanel == null) dashboardPanel = new DashboardController().build();
-                yield dashboardPanel;
-            }
+            case "Inmuebles" -> new InmueblesController().build();
+            case "Clientes"  -> new ClientesController().build();
+            case "Visitas"   -> new VisitasController().build();
+            case "Asesores"  -> new AsesoresController().build();
+            default          -> new DashboardController(this).build();
         };
     }
 }

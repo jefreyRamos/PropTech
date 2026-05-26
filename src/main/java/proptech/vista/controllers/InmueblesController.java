@@ -13,12 +13,15 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Separator;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -27,7 +30,6 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import proptech.modelo.Asesor;
 import proptech.modelo.Inmueble;
 import proptech.servicios.PropTechService;
 
@@ -36,185 +38,202 @@ public class InmueblesController {
     private final PropTechService svc = PropTechService.getInstance();
     private final ObservableList<Inmueble> datos = FXCollections.observableArrayList();
     private TableView<Inmueble> tabla;
-
-    // Filtros
     private ComboBox<String> cmbTipo, cmbFinalidad;
     private TextField txtPrecioMax, txtCiudad, txtBusqueda;
+    private Label lblConteo;
 
     public Pane build() {
-        VBox root = new VBox(14);
-        root.setPrefSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        root.setPadding(new Insets(4));
+        VBox root = new VBox(12);
+        root.getStyleClass().add("modulo-root");
+        root.setMaxWidth(Double.MAX_VALUE);
+        root.setMaxHeight(Double.MAX_VALUE);
+
+        tabla = buildTabla();
+        VBox.setVgrow(tabla, Priority.ALWAYS);
 
         root.getChildren().addAll(
             buildHeader(),
             buildFiltros(),
-            buildTabla(),
-            buildPiePagina()
+            tabla,
+            buildAccionesBar()
         );
-        VBox.setVgrow(buildTabla(), Priority.ALWAYS);
         cargarDatos();
         return root;
     }
 
-    // ── Encabezado ─────────────────────────────────────────────────────────
+    // ── Header ─────────────────────────────────────────────────────────────
     private HBox buildHeader() {
         HBox hb = new HBox(12);
+        hb.getStyleClass().add("module-header");
         hb.setAlignment(Pos.CENTER_LEFT);
-        hb.setStyle("-fx-background-color:white;-fx-background-radius:12;-fx-padding:16 20;-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.06),8,0,0,2);");
+        hb.setMaxWidth(Double.MAX_VALUE);
 
-        Label title = new Label("🏘 Gestión de Inmuebles");
-        title.setStyle("-fx-font-size:17px;-fx-font-weight:bold;-fx-text-fill:#1a202c;");
+        Label title = new Label("🏘  Gestión de Inmuebles");
+        title.getStyleClass().add("module-title");
+
+        lblConteo = new Label();
+        lblConteo.setStyle("-fx-font-size:12px; -fx-text-fill:#94a3b8; -fx-padding:0 0 0 10;");
+        datos.addListener((javafx.collections.ListChangeListener<Inmueble>) c ->
+            lblConteo.setText(datos.size() + " inmueble" + (datos.size()!=1?"s":"")));
 
         Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
 
         txtBusqueda = new TextField();
         txtBusqueda.setPromptText("🔍  Buscar código, dirección, barrio...");
         txtBusqueda.getStyleClass().add("search-field");
-        txtBusqueda.setPrefWidth(270);
-        txtBusqueda.textProperty().addListener((o, a, n) -> buscarLocal(n));
+        txtBusqueda.setPrefWidth(260);
+        txtBusqueda.textProperty().addListener((o,a,n) -> buscarLocal(n));
 
         Button btnNuevo = new Button("＋  Nuevo Inmueble");
         btnNuevo.getStyleClass().add("btn-primary");
         btnNuevo.setOnAction(e -> abrirFormulario(null));
 
-        hb.getChildren().addAll(title, sp, txtBusqueda, btnNuevo);
+        hb.getChildren().addAll(title, lblConteo, sp, txtBusqueda, btnNuevo);
         return hb;
     }
 
     // ── Filtros ────────────────────────────────────────────────────────────
     private HBox buildFiltros() {
         HBox hb = new HBox(10);
+        hb.getStyleClass().add("filtros-bar");
         hb.setAlignment(Pos.CENTER_LEFT);
-        hb.setStyle("-fx-background-color:white;-fx-background-radius:10;-fx-padding:10 16;-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.05),6,0,0,1);");
+        hb.setMaxWidth(Double.MAX_VALUE);
 
-        Label lbl = new Label("Filtros:");
-        lbl.setStyle("-fx-font-size:12px;-fx-font-weight:bold;-fx-text-fill:#718096;");
+        Label lbl = new Label("FILTROS");
+        lbl.getStyleClass().add("filtros-label");
+
+        Separator s1 = new Separator(); s1.setOrientation(javafx.geometry.Orientation.VERTICAL);
+        s1.setPrefHeight(24);
 
         cmbTipo = new ComboBox<>(FXCollections.observableArrayList(
             "Todos","APARTAMENTO","CASA","LOCAL_COMERCIAL","OFICINA","LOTE","BODEGA"));
-        cmbTipo.setValue("Todos"); cmbTipo.setPrefWidth(165);
+        cmbTipo.setValue("Todos"); cmbTipo.setPrefWidth(155);
 
         cmbFinalidad = new ComboBox<>(FXCollections.observableArrayList("Todos","VENTA","ARRIENDO"));
-        cmbFinalidad.setValue("Todos"); cmbFinalidad.setPrefWidth(120);
+        cmbFinalidad.setValue("Todos"); cmbFinalidad.setPrefWidth(115);
 
-        txtPrecioMax = new TextField(); txtPrecioMax.setPromptText("Precio máx."); txtPrecioMax.setPrefWidth(130);
-        txtCiudad    = new TextField(); txtCiudad.setPromptText("Ciudad");         txtCiudad.setPrefWidth(120);
+        txtPrecioMax = new TextField();
+        txtPrecioMax.setPromptText("Precio máximo");
+        txtPrecioMax.setPrefWidth(130);
 
-        Button btnFiltrar = new Button("Filtrar");   btnFiltrar.getStyleClass().add("btn-secondary");
-        Button btnLimpiar = new Button("✕ Limpiar"); btnLimpiar.getStyleClass().add("btn-icon");
+        txtCiudad = new TextField();
+        txtCiudad.setPromptText("Ciudad");
+        txtCiudad.setPrefWidth(115);
 
+        Button btnFiltrar = new Button("Filtrar");
+        btnFiltrar.getStyleClass().add("btn-primary");
         btnFiltrar.setOnAction(e -> aplicarFiltros());
+
+        Button btnLimpiar = new Button("✕  Limpiar");
+        btnLimpiar.getStyleClass().add("btn-secondary");
         btnLimpiar.setOnAction(e -> limpiarFiltros());
 
-        hb.getChildren().addAll(lbl, cmbTipo, cmbFinalidad, txtPrecioMax, txtCiudad, btnFiltrar, btnLimpiar);
+        hb.getChildren().addAll(lbl, s1, cmbTipo, cmbFinalidad, txtPrecioMax, txtCiudad, btnFiltrar, btnLimpiar);
         return hb;
     }
 
     // ── Tabla ──────────────────────────────────────────────────────────────
     @SuppressWarnings("unchecked")
     private TableView<Inmueble> buildTabla() {
-        tabla = new TableView<>();
-        tabla.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        tabla.setPrefHeight(Double.MAX_VALUE);
-        tabla.setPlaceholder(new Label("Sin inmuebles registrados."));
-        VBox.setVgrow(tabla, Priority.ALWAYS);
+        TableView<Inmueble> t = new TableView<>();
+        t.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        t.setMaxWidth(Double.MAX_VALUE);
+        t.setMaxHeight(Double.MAX_VALUE);
+        t.setPlaceholder(new Label("Sin inmuebles.  Haz clic en '＋ Nuevo Inmueble' para agregar."));
 
-        TableColumn<Inmueble,String> cCod  = strCol("Código",    "codigo",    80);
-        TableColumn<Inmueble,String> cDir  = strCol("Dirección", "direccion", 170);
-        TableColumn<Inmueble,String> cCiud = strCol("Ciudad",    "ciudad",    90);
-        TableColumn<Inmueble,String> cBarr = strCol("Barrio",    "barrio",    100);
+        TableColumn<Inmueble,String> cCod  = sc("Código",    "codigo",    75);
+        TableColumn<Inmueble,String> cDir  = sc("Dirección", "direccion", 170);
+        TableColumn<Inmueble,String> cCiud = sc("Ciudad",    "ciudad",    85);
+        TableColumn<Inmueble,String> cBarr = sc("Barrio",    "barrio",    100);
 
         TableColumn<Inmueble,Object> cTipo = new TableColumn<>("Tipo");
         cTipo.setCellValueFactory(new PropertyValueFactory<>("tipo"));
         cTipo.setMinWidth(120);
-        cTipo.setCellFactory(tc -> badgeCell("badge-blue"));
+        cTipo.setCellFactory(tc -> badgeCell(v -> "badge-blue"));
 
         TableColumn<Inmueble,Object> cFin = new TableColumn<>("Finalidad");
         cFin.setCellValueFactory(new PropertyValueFactory<>("finalidad"));
         cFin.setMinWidth(90);
-        cFin.setCellFactory(tc -> new TableCell<>() {
-            @Override protected void updateItem(Object v, boolean empty) {
-                super.updateItem(v,empty); setText(null); setGraphic(null);
-                if (!empty && v != null) {
-                    Label l = new Label(v.toString());
-                    l.getStyleClass().add("VENTA".equals(v.toString()) ? "badge-green" : "badge-orange");
-                    setGraphic(l);
-                }
-            }
-        });
+        cFin.setCellFactory(tc -> badgeCell(v -> "VENTA".equals(v) ? "badge-green" : "badge-teal"));
 
         TableColumn<Inmueble,Number> cPrecio = new TableColumn<>("Precio");
         cPrecio.setCellValueFactory(cd -> cd.getValue().precioProperty());
         cPrecio.setMinWidth(130);
         cPrecio.setCellFactory(tc -> new TableCell<>() {
-            @Override protected void updateItem(Number v, boolean empty) {
-                super.updateItem(v,empty);
-                setText(empty||v==null ? null : "$"+String.format("%,.0f",v.doubleValue()));
+            @Override protected void updateItem(Number v, boolean e) {
+                super.updateItem(v,e);
+                if (e||v==null) { setText(null); return; }
+                setText("$" + String.format("%,.0f", v.doubleValue()));
+                setStyle("-fx-font-weight:bold; -fx-text-fill:#0f172a;");
             }
         });
 
-        TableColumn<Inmueble,Number> cArea = numCol("m²",   "area",         65);
-        TableColumn<Inmueble,Number> cHab  = numCol("Hab.", "habitaciones", 50);
-        TableColumn<Inmueble,Number> cBan  = numCol("Baños","banos",        55);
+        TableColumn<Inmueble,Number> cArea = numCol("m²",    "area",          55);
+        TableColumn<Inmueble,Number> cHab  = numCol("Hab.",  "habitaciones",  45);
+        TableColumn<Inmueble,Number> cBan  = numCol("Baños", "banos",         55);
 
         TableColumn<Inmueble,Object> cEst = new TableColumn<>("Estado");
         cEst.setCellValueFactory(new PropertyValueFactory<>("estado"));
-        cEst.setMinWidth(110);
-        cEst.setCellFactory(tc -> new TableCell<>() {
-            @Override protected void updateItem(Object v, boolean empty) {
-                super.updateItem(v,empty); setText(null); setGraphic(null);
-                if (!empty && v != null) {
-                    Label l = new Label(v.toString());
-                    l.getStyleClass().add(switch(v.toString()) {
-                        case "DISPONIBLE" -> "badge-green";
-                        case "RESERVADO"  -> "badge-orange";
-                        default           -> "badge-red";
-                    });
-                    setGraphic(l);
-                }
-            }
-        });
+        cEst.setMinWidth(108);
+        cEst.setCellFactory(tc -> badgeCell(v -> switch(v) {
+            case "DISPONIBLE" -> "badge-green";
+            case "RESERVADO"  -> "badge-orange";
+            case "ARRENDADO"  -> "badge-blue";
+            default           -> "badge-red";
+        }));
 
-        TableColumn<Inmueble,Number> cVis = numCol("Visitas","contadorVisitas",60);
+        TableColumn<Inmueble,Number> cVis = new TableColumn<>("👁");
+        cVis.setCellValueFactory(new PropertyValueFactory<>("contadorVisitas"));
+        cVis.setMinWidth(45); cVis.setMaxWidth(55);
 
         TableColumn<Inmueble,Void> cAcc = new TableColumn<>("Acciones");
-        cAcc.setMinWidth(110); cAcc.setMaxWidth(110);
+        cAcc.setMinWidth(135); cAcc.setMaxWidth(145);
         cAcc.setCellFactory(tc -> new TableCell<>() {
-            final Button bEdit = new Button("✏"); final Button bDel = new Button("🗑");
-            final HBox box = new HBox(4, bEdit, bDel);
-            { bEdit.getStyleClass().add("btn-icon"); bDel.getStyleClass().add("btn-icon");
-              box.setAlignment(Pos.CENTER);
-              bEdit.setOnAction(e -> abrirFormulario(getTableView().getItems().get(getIndex())));
-              bDel.setOnAction(e  -> confirmarEliminar(getTableView().getItems().get(getIndex())));
+            final Button bEdit = btn("✏  Editar",  "btn-edit");
+            final Button bDel  = btn("🗑  Borrar", "btn-delete");
+            final HBox box     = new HBox(6, bEdit, bDel);
+            {
+                box.setAlignment(Pos.CENTER);
+                bEdit.setOnAction(e -> abrirFormulario(datos.get(getIndex())));
+                bDel.setOnAction(e  -> confirmarEliminar(datos.get(getIndex())));
             }
-            @Override protected void updateItem(Void v,boolean empty){ super.updateItem(v,empty); setGraphic(empty?null:box); }
+            @Override protected void updateItem(Void v, boolean e){ super.updateItem(v,e); setGraphic(e?null:box); }
         });
 
-        tabla.getColumns().addAll(cCod,cDir,cCiud,cBarr,cTipo,cFin,cPrecio,cArea,cHab,cBan,cEst,cVis,cAcc);
-        tabla.setItems(datos);
-        return tabla;
+        t.getColumns().addAll(cCod,cDir,cCiud,cBarr,cTipo,cFin,cPrecio,cArea,cHab,cBan,cEst,cVis,cAcc);
+        t.setItems(datos);
+        return t;
     }
 
-    // ── Pie de página ──────────────────────────────────────────────────────
-    private HBox buildPiePagina() {
-        HBox hb = new HBox(10);
-        hb.setAlignment(Pos.CENTER_RIGHT);
+    // ── Acciones Bar ───────────────────────────────────────────────────────
+    private HBox buildAccionesBar() {
+        HBox bar = new HBox(10);
+        bar.getStyleClass().add("acciones-bar");
+        bar.setAlignment(Pos.CENTER_RIGHT);
+        bar.setMaxWidth(Double.MAX_VALUE);
 
-        Button btnOrden = new Button("⬆ Ordenar por Precio (BST)");
+        Label lbl = new Label("Herramientas:");
+        lbl.setStyle("-fx-font-size:11px; -fx-text-fill:#94a3b8; -fx-font-weight:bold;");
+
+        Button btnOrden = new Button("⬆  Ordenar por Precio (BST)");
         btnOrden.getStyleClass().add("btn-secondary");
         btnOrden.setOnAction(e -> datos.setAll(svc.inmueblesOrdenadosPorPrecio()));
 
-        Button btnRango = new Button("💰 Buscar por Rango de Precio");
+        Button btnRango = new Button("💰  Rango de Precio");
         btnRango.getStyleClass().add("btn-secondary");
         btnRango.setOnAction(e -> buscarRango());
 
-        Button btnRec = new Button("💡 Recomendar a Cliente");
+        Button btnRec = new Button("💡  Recomendar a Cliente");
         btnRec.getStyleClass().add("btn-secondary");
         btnRec.setOnAction(e -> mostrarRecomendaciones());
 
-        hb.getChildren().addAll(btnOrden, btnRango, btnRec);
-        return hb;
+        Button btnReload = new Button("↺  Recargar");
+        btnReload.getStyleClass().add("btn-secondary");
+        btnReload.setOnAction(e -> cargarDatos());
+
+        Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
+        bar.getChildren().addAll(lbl, sp, btnOrden, btnRango, btnRec, btnReload);
+        return bar;
     }
 
     // ── Lógica ─────────────────────────────────────────────────────────────
@@ -224,19 +243,14 @@ public class InmueblesController {
         if (q == null || q.isBlank()) { cargarDatos(); return; }
         String lq = q.toLowerCase();
         datos.setAll(svc.getTodosInmuebles().stream().filter(i ->
-            i.getCodigo().toLowerCase().contains(lq) ||
-            i.getDireccion().toLowerCase().contains(lq) ||
-            i.getBarrio().toLowerCase().contains(lq) ||
-            i.getCiudad().toLowerCase().contains(lq)).toList());
+            safe(i.getCodigo()).contains(lq) || safe(i.getDireccion()).contains(lq) ||
+            safe(i.getBarrio()).contains(lq) || safe(i.getCiudad()).contains(lq)).toList());
     }
 
     private void aplicarFiltros() {
-        String tipo = "Todos".equals(cmbTipo.getValue())     ? null : cmbTipo.getValue();
-        String fin  = "Todos".equals(cmbFinalidad.getValue())? null : cmbFinalidad.getValue();
-        double max  = 0;
-        try { max = Double.parseDouble(txtPrecioMax.getText().replace(",","").replace(".","").trim()); }
-        catch (Exception ignored) {}
-        datos.setAll(svc.filtrarInmuebles(tipo, fin, max, 0, txtCiudad.getText().trim()));
+        String tipo = "Todos".equals(cmbTipo.getValue())      ? null : cmbTipo.getValue();
+        String fin  = "Todos".equals(cmbFinalidad.getValue()) ? null : cmbFinalidad.getValue();
+        datos.setAll(svc.filtrarInmuebles(tipo, fin, pd(txtPrecioMax.getText()), 0, txtCiudad.getText().trim()));
     }
 
     private void limpiarFiltros() {
@@ -247,174 +261,182 @@ public class InmueblesController {
 
     private void buscarRango() {
         Dialog<ButtonType> dlg = new Dialog<>();
-        dlg.setTitle("Buscar por rango de precio (ArbolBST)");
-        dlg.setHeaderText("Ingrese el rango de precio:");
+        dlg.setTitle("Buscar por Rango — ArbolBST");
+        dlg.setHeaderText("Rango de precio");
+        GridPane gp = new GridPane(); gp.setHgap(12); gp.setVgap(10); gp.setPadding(new Insets(16));
         TextField tMin = new TextField(); tMin.setPromptText("Mínimo");
         TextField tMax = new TextField(); tMax.setPromptText("Máximo");
-        GridPane gp = new GridPane(); gp.setHgap(10); gp.setVgap(8); gp.setPadding(new Insets(12));
-        gp.add(new Label("Precio mínimo:"),0,0); gp.add(tMin,1,0);
-        gp.add(new Label("Precio máximo:"),0,1); gp.add(tMax,1,1);
+        gp.add(new Label("Precio mín:"),0,0); gp.add(tMin,1,0);
+        gp.add(new Label("Precio máx:"),0,1); gp.add(tMax,1,1);
         dlg.getDialogPane().setContent(gp);
         dlg.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         dlg.showAndWait().ifPresent(bt -> {
             if (bt == ButtonType.OK) {
-                try {
-                    double min = Double.parseDouble(tMin.getText().replace(",","").trim());
-                    double max = Double.parseDouble(tMax.getText().replace(",","").trim());
-                    List<Inmueble> r = svc.inmueblesPorRango(min, max);
-                    datos.setAll(r);
-                    mostrarInfo("ArbolBST encontró " + r.size() + " inmuebles en ese rango.");
-                } catch (NumberFormatException e) {
-                    mostrarError("Ingrese valores numéricos válidos.");
-                }
+                double min = pd(tMin.getText()), max = pd(tMax.getText());
+                if (max == 0) max = Double.MAX_VALUE;
+                List<Inmueble> r = svc.inmueblesPorRango(min, max);
+                datos.setAll(r);
+                if (r.isEmpty()) info("El ArbolBST no encontró inmuebles en ese rango.");
             }
         });
     }
 
     private void mostrarRecomendaciones() {
         TextInputDialog dlg = new TextInputDialog();
-        dlg.setTitle("Recomendaciones (Grafo + TablaHash)");
-        dlg.setHeaderText("Ingrese la identificación del cliente:");
-        dlg.setContentText("ID Cliente:");
+        dlg.setTitle("Recomendaciones — Grafo + TablaHash");
+        dlg.setHeaderText("ID del cliente");
+        dlg.setContentText("Identificación:");
         dlg.showAndWait().ifPresent(id -> {
             List<Inmueble> recs = svc.recomendar(id.trim());
-            if (recs.isEmpty()) { mostrarInfo("Sin recomendaciones para ese cliente."); return; }
+            if (recs.isEmpty()) { info("Sin recomendaciones para ese cliente."); return; }
             StringBuilder sb = new StringBuilder();
-            recs.forEach(i -> sb.append("• ").append(i).append("\n"));
-            Alert a = new Alert(Alert.AlertType.INFORMATION);
-            a.setTitle("Recomendaciones"); a.setHeaderText("Top " + recs.size() + " para " + id);
-            a.setContentText(sb.toString()); a.showAndWait();
+            recs.forEach(i -> sb.append("• ").append(i.getCodigo()).append(" — ")
+                .append(i.getDireccion()).append("  |  $").append(String.format("%,.0f", i.getPrecio())).append("\n"));
+            Alert a = new Alert(Alert.AlertType.INFORMATION, sb.toString(), ButtonType.OK);
+            a.setTitle("Top " + recs.size() + " recomendaciones para " + id); a.showAndWait();
         });
     }
 
+    // ── Formulario modal de inmueble ────────────────────────────────────────
     private void abrirFormulario(Inmueble inmueble) {
         Stage win = new Stage();
         win.initModality(Modality.APPLICATION_MODAL);
-        win.setTitle(inmueble == null ? "Nuevo Inmueble" : "Editar Inmueble");
-        win.setWidth(520); win.setHeight(580);
+        win.setTitle(inmueble == null ? "➕ Nuevo Inmueble" : "✏ Editar Inmueble — " + inmueble.getCodigo());
+        win.setWidth(540); win.setHeight(620); win.setResizable(false);
 
+        // Header oscuro
+        VBox header = new VBox(4);
+        header.getStyleClass().add("form-dialog-header");
+        Label hTitle = new Label(inmueble == null ? "Nuevo Inmueble" : "Editar Inmueble");
+        hTitle.getStyleClass().add("form-dialog-title");
+        Label hSub = new Label(inmueble == null ? "Complete los datos del nuevo inmueble"
+                                                : "Modifique los datos del inmueble " + inmueble.getCodigo());
+        hSub.getStyleClass().add("form-dialog-subtitle");
+        header.getChildren().addAll(hTitle, hSub);
+
+        // Formulario
         GridPane gp = new GridPane();
-        gp.setHgap(12); gp.setVgap(10); gp.setPadding(new Insets(20));
-        gp.setStyle("-fx-background-color:white;");
+        gp.getStyleClass().add("form-dialog-body");
+        gp.setHgap(14); gp.setVgap(11);
+        gp.getColumnConstraints().addAll(cc(120), cc2());
 
-        TextField tCod  = field(inmueble != null ? inmueble.getCodigo()    : "");
-        TextField tDir  = field(inmueble != null ? inmueble.getDireccion() : "");
-        TextField tCiud = field(inmueble != null ? inmueble.getCiudad()    : "");
-        TextField tBarr = field(inmueble != null ? inmueble.getBarrio()    : "");
-        TextField tPrec = field(inmueble != null ? String.valueOf((long)inmueble.getPrecio()) : "");
-        TextField tArea = field(inmueble != null ? String.valueOf((long)inmueble.getArea())   : "");
-        TextField tHab  = field(inmueble != null ? String.valueOf(inmueble.getHabitaciones()) : "0");
-        TextField tBan  = field(inmueble != null ? String.valueOf(inmueble.getBanos())        : "0");
+        TextField tCod  = f(inmueble != null ? inmueble.getCodigo()    : "");
+        TextField tDir  = f(inmueble != null ? inmueble.getDireccion() : "");
+        TextField tCiud = f(inmueble != null ? inmueble.getCiudad()    : "");
+        TextField tBarr = f(inmueble != null ? inmueble.getBarrio()    : "");
+        TextField tPrec = f(inmueble != null ? String.format("%.0f", inmueble.getPrecio()) : "");
+        TextField tArea = f(inmueble != null ? String.format("%.0f", inmueble.getArea())   : "");
+        TextField tHab  = f(inmueble != null ? String.valueOf(inmueble.getHabitaciones())  : "0");
+        TextField tBan  = f(inmueble != null ? String.valueOf(inmueble.getBanos())          : "0");
 
-        ComboBox<String> cTipo = new ComboBox<>(FXCollections.observableArrayList(
-            "APARTAMENTO","CASA","LOCAL_COMERCIAL","OFICINA","LOTE","BODEGA"));
+        ComboBox<String> cTipo = cmb("APARTAMENTO","CASA","LOCAL_COMERCIAL","OFICINA","LOTE","BODEGA");
         cTipo.setValue(inmueble != null ? inmueble.getTipo().name() : "APARTAMENTO");
 
-        ComboBox<String> cFin = new ComboBox<>(FXCollections.observableArrayList("VENTA","ARRIENDO"));
+        ComboBox<String> cFin = cmb("VENTA","ARRIENDO");
         cFin.setValue(inmueble != null ? inmueble.getFinalidad().name() : "ARRIENDO");
 
-        ComboBox<String> cEst = new ComboBox<>(FXCollections.observableArrayList(
-            "DISPONIBLE","RESERVADO","ARRENDADO","VENDIDO"));
+        ComboBox<String> cEst = cmb("DISPONIBLE","RESERVADO","ARRENDADO","VENDIDO");
         cEst.setValue(inmueble != null ? inmueble.getEstado().name() : "DISPONIBLE");
 
-        List<Asesor> asesores = svc.getTodosAsesores();
-        ComboBox<String> cAsesor = new ComboBox<>();
-        asesores.forEach(a -> cAsesor.getItems().add(a.getCodigo() + " — " + a.getNombre()));
+        ComboBox<String> cAs = new ComboBox<>();
+        cAs.setMaxWidth(Double.MAX_VALUE);
+        svc.getTodosAsesores().forEach(a -> cAs.getItems().add(a.getCodigo() + " — " + a.getNombre()));
         if (inmueble != null && inmueble.getCodigoAsesor() != null)
-            cAsesor.getItems().stream()
-                .filter(s -> s.startsWith(inmueble.getCodigoAsesor()))
-                .findFirst().ifPresent(cAsesor::setValue);
-        else if (!cAsesor.getItems().isEmpty()) cAsesor.setValue(cAsesor.getItems().get(0));
+            cAs.getItems().stream().filter(s -> s.startsWith(inmueble.getCodigoAsesor())).findFirst().ifPresent(cAs::setValue);
+        else if (!cAs.getItems().isEmpty()) cAs.setValue(cAs.getItems().get(0));
 
-        if (inmueble != null) tCod.setDisable(true);
+        if (inmueble != null) { tCod.setDisable(true); tCod.setStyle("-fx-opacity:0.6;"); }
 
         int r = 0;
-        gp.add(lbl("Código *"),0,r); gp.add(tCod,1,r++);
-        gp.add(lbl("Dirección *"),0,r); gp.add(tDir,1,r++);
-        gp.add(lbl("Ciudad *"),0,r); gp.add(tCiud,1,r++);
-        gp.add(lbl("Barrio / Zona"),0,r); gp.add(tBarr,1,r++);
-        gp.add(lbl("Tipo"),0,r); gp.add(cTipo,1,r++);
-        gp.add(lbl("Finalidad"),0,r); gp.add(cFin,1,r++);
-        gp.add(lbl("Precio *"),0,r); gp.add(tPrec,1,r++);
-        gp.add(lbl("Área m²"),0,r); gp.add(tArea,1,r++);
-        gp.add(lbl("Habitaciones"),0,r); gp.add(tHab,1,r++);
-        gp.add(lbl("Baños"),0,r); gp.add(tBan,1,r++);
-        gp.add(lbl("Estado"),0,r); gp.add(cEst,1,r++);
-        gp.add(lbl("Asesor"),0,r); gp.add(cAsesor,1,r++);
+        row(gp,r++,"Código *",      tCod);
+        row(gp,r++,"Dirección *",   tDir);
+        row(gp,r++,"Ciudad *",      tCiud);
+        row(gp,r++,"Barrio / Zona", tBarr);
+        row(gp,r++,"Tipo",          cTipo);
+        row(gp,r++,"Finalidad",     cFin);
+        row(gp,r++,"Precio *",      tPrec);
+        row(gp,r++,"Área m²",       tArea);
+        row(gp,r++,"Habitaciones",  tHab);
+        row(gp,r++,"Baños",         tBan);
+        row(gp,r++,"Estado",        cEst);
+        row(gp,r++,"Asesor",        cAs);
 
-        for (int i = 0; i < gp.getChildren().size(); i++) {
-            javafx.scene.Node n = gp.getChildren().get(i);
-            if (n instanceof ComboBox<?> cb) cb.setPrefWidth(260);
-            if (n instanceof TextField tf && !(tf == tCod && inmueble != null)) tf.setPrefWidth(260);
-        }
+        // Footer
+        Button btnG = new Button(inmueble == null ? "✔  Registrar Inmueble" : "✔  Guardar Cambios");
+        btnG.getStyleClass().add("btn-primary");
+        Button btnC = new Button("Cancelar"); btnC.getStyleClass().add("btn-secondary");
+        btnC.setOnAction(e -> win.close());
 
-        Button btnGuardar = new Button(inmueble == null ? "Registrar" : "Actualizar");
-        btnGuardar.getStyleClass().add("btn-primary");
-        Button btnCancelar = new Button("Cancelar"); btnCancelar.getStyleClass().add("btn-icon");
-        btnCancelar.setOnAction(e -> win.close());
-
-        HBox botones = new HBox(10, btnCancelar, btnGuardar);
-        botones.setAlignment(Pos.CENTER_RIGHT); botones.setPadding(new Insets(10, 20, 16, 20));
-
-        btnGuardar.setOnAction(e -> {
+        btnG.setOnAction(e -> {
             try {
-                if (tCod.getText().isBlank() || tDir.getText().isBlank() || tCiud.getText().isBlank() || tPrec.getText().isBlank())
+                if (tCod.getText().isBlank() || tDir.getText().isBlank()
+                        || tCiud.getText().isBlank() || tPrec.getText().isBlank())
                     throw new IllegalArgumentException("Código, dirección, ciudad y precio son obligatorios.");
-
-                String codAsesor = cAsesor.getValue() != null ? cAsesor.getValue().split(" — ")[0] : null;
+                String codAs = cAs.getValue() != null ? cAs.getValue().split(" — ")[0].trim() : "";
                 Inmueble obj = inmueble != null ? inmueble : new Inmueble();
                 if (inmueble == null) obj.setCodigo(tCod.getText().trim());
-                obj.setDireccion(tDir.getText().trim());
-                obj.setCiudad(tCiud.getText().trim());
-                obj.setBarrio(tBarr.getText().trim());
-                obj.setTipo(Inmueble.Tipo.valueOf(cTipo.getValue()));
+                obj.setDireccion(tDir.getText().trim()); obj.setCiudad(tCiud.getText().trim());
+                obj.setBarrio(tBarr.getText().trim());   obj.setTipo(Inmueble.Tipo.valueOf(cTipo.getValue()));
                 obj.setFinalidad(Inmueble.Finalidad.valueOf(cFin.getValue()));
-                obj.setPrecio(Double.parseDouble(tPrec.getText().replace(",","").replace(".","").trim()));
-                obj.setArea(tArea.getText().isBlank() ? 0 : Double.parseDouble(tArea.getText().trim()));
-                obj.setHabitaciones(tHab.getText().isBlank() ? 0 : Integer.parseInt(tHab.getText().trim()));
-                obj.setBanos(tBan.getText().isBlank() ? 0 : Integer.parseInt(tBan.getText().trim()));
-                obj.setEstado(Inmueble.Estado.valueOf(cEst.getValue()));
-                obj.setCodigoAsesor(codAsesor);
-
+                obj.setPrecio(pd(tPrec.getText()));      obj.setArea(pd(tArea.getText()));
+                obj.setHabitaciones((int)pd(tHab.getText())); obj.setBanos((int)pd(tBan.getText()));
+                obj.setEstado(Inmueble.Estado.valueOf(cEst.getValue())); obj.setCodigoAsesor(codAs);
                 boolean ok = inmueble == null ? svc.registrarInmueble(obj) : svc.actualizarInmueble(obj);
                 if (!ok) throw new IllegalStateException("Ya existe un inmueble con ese código.");
                 cargarDatos(); win.close();
-            } catch (Exception ex) { mostrarError(ex.getMessage()); }
+            } catch (Exception ex) { err(ex.getMessage()); }
         });
 
-        VBox layout = new VBox(gp, botones);
-        layout.setStyle("-fx-background-color:white;");
+        HBox footer = new HBox(10, btnC, btnG);
+        footer.getStyleClass().add("form-dialog-footer");
+        footer.setAlignment(Pos.CENTER_RIGHT);
+
+        ScrollPane sp = new ScrollPane(gp);
+        sp.setFitToWidth(true); sp.setStyle("-fx-background:white; -fx-background-color:white;");
+        VBox layout = new VBox(header, sp, footer);
+        layout.getStyleClass().add("form-dialog");
+        VBox.setVgrow(sp, Priority.ALWAYS);
         win.setScene(new Scene(layout));
         win.show();
     }
 
     private void confirmarEliminar(Inmueble i) {
         Alert a = new Alert(Alert.AlertType.CONFIRMATION,
-            "¿Eliminar inmueble " + i.getCodigo() + " — " + i.getDireccion() + "?",
+            "¿Eliminar el inmueble " + i.getCodigo() + "?\n" + i.getDireccion() + "\n\nEsta acción no se puede deshacer.",
             ButtonType.YES, ButtonType.NO);
-        a.setTitle("Confirmar eliminación");
-        a.showAndWait().ifPresent(r -> { if (r == ButtonType.YES) { svc.eliminarInmueble(i.getCodigo()); cargarDatos(); } });
+        a.setTitle("Confirmar eliminación"); a.setHeaderText("Eliminar Inmueble");
+        a.showAndWait().ifPresent(r -> { if (r==ButtonType.YES) { svc.eliminarInmueble(i.getCodigo()); cargarDatos(); } });
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
-    private TableColumn<Inmueble,String> strCol(String name, String field, int w) {
-        TableColumn<Inmueble,String> c = new TableColumn<>(name);
-        c.setCellValueFactory(new PropertyValueFactory<>(field)); c.setMinWidth(w); return c;
+    private TableColumn<Inmueble,String> sc(String n, String f, int w) {
+        TableColumn<Inmueble,String> c = new TableColumn<>(n);
+        c.setCellValueFactory(new PropertyValueFactory<>(f)); c.setMinWidth(w); return c;
     }
-    private TableColumn<Inmueble,Number> numCol(String name, String field, int w) {
-        TableColumn<Inmueble,Number> c = new TableColumn<>(name);
-        c.setCellValueFactory(new PropertyValueFactory<>(field)); c.setMinWidth(w); return c;
+    private TableColumn<Inmueble,Number> numCol(String n, String f, int w) {
+        TableColumn<Inmueble,Number> c = new TableColumn<>(n);
+        c.setCellValueFactory(new PropertyValueFactory<>(f)); c.setMinWidth(w); c.setMaxWidth(w+20); return c;
     }
-    private <T> TableCell<Inmueble,T> badgeCell(String css) {
+    private <T> TableCell<Inmueble,T> badgeCell(java.util.function.Function<String,String> fn) {
         return new TableCell<>() {
-            @Override protected void updateItem(T v, boolean empty) {
-                super.updateItem(v,empty); setText(null); setGraphic(null);
-                if (!empty && v != null) { Label l = new Label(v.toString()); l.getStyleClass().add(css); setGraphic(l); }
+            @Override protected void updateItem(T v, boolean e) {
+                super.updateItem(v,e); setText(null); setGraphic(null);
+                if (!e && v!=null) { Label l=new Label(v.toString().replace("_"," ")); l.getStyleClass().add(fn.apply(v.toString())); setGraphic(l); }
             }
         };
     }
-    private TextField field(String val) { TextField t = new TextField(val); t.getStyleClass().add("text-field"); return t; }
-    private Label     lbl(String txt)   { Label l = new Label(txt); l.getStyleClass().add("field-label"); l.setMinWidth(110); return l; }
-    private void mostrarError(String msg){ Alert a=new Alert(Alert.AlertType.ERROR,msg); a.setTitle("Error"); a.showAndWait(); }
-    private void mostrarInfo(String msg) { Alert a=new Alert(Alert.AlertType.INFORMATION,msg); a.setTitle("Info"); a.showAndWait(); }
+    private void row(GridPane gp, int r, String lbl, javafx.scene.Node ctrl) {
+        Label l = new Label(lbl); l.getStyleClass().add("field-label");
+        gp.add(l,0,r); gp.add(ctrl,1,r);
+        if (ctrl instanceof Region rg) { rg.setMaxWidth(Double.MAX_VALUE); GridPane.setFillWidth(ctrl,true); }
+    }
+    private TextField f(String v) { TextField t=new TextField(v); t.setMaxWidth(Double.MAX_VALUE); return t; }
+    private ComboBox<String> cmb(String... items) { ComboBox<String> c=new ComboBox<>(FXCollections.observableArrayList(items)); c.setMaxWidth(Double.MAX_VALUE); return c; }
+    private ColumnConstraints cc(int w) { return new ColumnConstraints(w); }
+    private ColumnConstraints cc2() { ColumnConstraints c=new ColumnConstraints(); c.setHgrow(Priority.ALWAYS); c.setFillWidth(true); return c; }
+    private double pd(String s) { try { return Double.parseDouble(s.replace(",","").replace(".","").trim()); } catch (Exception e) { return 0; } }
+    private String safe(String s) { return s==null?"":s.toLowerCase(); }
+    private Button btn(String txt, String css) { Button b=new Button(txt); b.getStyleClass().add(css); return b; }
+    private void err(String m) { new Alert(Alert.AlertType.ERROR, m, ButtonType.OK).showAndWait(); }
+    private void info(String m){ new Alert(Alert.AlertType.INFORMATION, m, ButtonType.OK).showAndWait(); }
 }
